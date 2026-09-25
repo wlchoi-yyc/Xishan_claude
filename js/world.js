@@ -89,6 +89,7 @@ export function makeSky(scene, { top = '#6f9fc8', horizon = '#dfe6e3', bottom, s
         c += sunColor * smoothstep(1.0 - sunSize * 0.05, 1.0 - sunSize * 0.04, s) * sunStrength;
         c = mix(c, vec3(0.015, 0.02, 0.04), dark);
         gl_FragColor = vec4(c, 1.0);
+        #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
   });
@@ -124,6 +125,7 @@ export function makeTerrain({ size = 200, seg = 100, sizeZ, segZ, cx = 0, cz = 0
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const mesh = new THREE.Mesh(geo, vcMat());
+  mesh.userData.terrain = true;
   return mesh;
 }
 // 用於地形上色的混合
@@ -544,7 +546,10 @@ export function baseScene({ fog = '#cfd8d4', fogNear = 30, fogFar = 400, sky = {
   scene.fog = new THREE.Fog(fog, fogNear, fogFar);
   scene.background = new THREE.Color(fog);
   const h = new THREE.HemisphereLight(hemi[0], hemi[1], hemi[2]); scene.add(h);
-  const d = new THREE.DirectionalLight(sun[0], sun[1]); d.position.set(...sun[2]); scene.add(d);
+  // 太陽光的方向與天空中的太陽一致，陰影才會對
+  const sd = new THREE.Vector3(...(sky.sunDir || sun[2])).normalize();
+  const d = new THREE.DirectionalLight(sun[0], sun[1]); d.position.copy(sd).multiplyScalar(200); scene.add(d);
+  d.userData.follow = true; d.userData.dir = sd.clone();
   const s = makeSky(scene, Object.assign({ horizon: fog }, sky));
   return { scene, hemi: h, sun: d, sky: s };
 }

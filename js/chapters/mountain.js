@@ -55,7 +55,7 @@ function makeTorch(lit = true) {
 }
 
 function buildFoot() {
-  const B = baseScene({ fog: '#cdd6d0', fogNear: 30, fogFar: 320, sky: { top: '#709ec6', sunDir: [-0.4, 0.55, 0.3] }, sun: ['#fff0d2', 1.6, [-60, 90, 40]] });
+  const B = baseScene({ fog: '#d4d8cf', fogNear: 30, fogFar: 320, sky: { top: '#6d9bc6', sunDir: [-0.45, 0.46, 0.35], sunColor: '#ffeccc' }, hemi: ['#e2e8ea', '#5a5240', 1.05], sun: ['#ffe8c6', 1.9] });
   const { scene } = B;
   const terrain = makeTerrain({ size: 260, seg: 130, heightAt: footH, colorAt: footColor });
   scene.add(terrain);
@@ -407,7 +407,7 @@ const STAGES = [
 ];
 
 function buildSlope() {
-  const B = baseScene({ fog: '#d3dad4', fogNear: 120, fogFar: 1900, sky: { top: '#6c9bc5', sunDir: [-0.5, 0.6, 0.35] }, sun: ['#fff0d2', 1.6, [-120, 200, 80]] });
+  const B = baseScene({ fog: '#dcdcd0', fogNear: 120, fogFar: 1900, sky: { top: '#6897c4', sunDir: [-0.5, 0.4, 0.35], sunColor: '#ffe6c2' }, hemi: ['#e4e6e4', '#5a5240', 1.05], sun: ['#ffe2bc', 1.9] });
   const { scene } = B;
   const near = makeTerrain({ size: 200, seg: 150, heightAt: slopeH, colorAt: slopeColor }); scene.add(near);
   const far = makeTerrain({ size: 2600, seg: 150, cx: 900, heightAt: (x, z) => (x < 110 && Math.abs(z) < 110 ? slopeH(x, z) - 30 : slopeH(x, z) - 0.3), colorAt: slopeColor }); scene.add(far);

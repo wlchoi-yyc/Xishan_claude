@@ -8,9 +8,20 @@ function buildRoom() {
   scene.background = new THREE.Color('#6f747a');
   scene.fog = new THREE.Fog('#6f747a', 12, 140);
 
-  scene.add(new THREE.HemisphereLight('#b9c0c8', '#3b2f25', 0.9));
-  const lamp = new THREE.PointLight('#ffbe7a', 5, 9, 1.4); lamp.position.set(0.8, 2.2, -0.3); scene.add(lamp);
-  const winLight = new THREE.DirectionalLight('#aeb8c4', 1.2); winLight.position.set(0, 4, -12); scene.add(winLight);
+  scene.add(new THREE.HemisphereLight('#c3cad2', '#4a3a2c', 1.25));
+  const lamp = new THREE.PointLight('#ffbe7a', 7, 10, 1.3); lamp.position.set(0.8, 2.2, -0.3); scene.add(lamp);
+  const winLight = new THREE.DirectionalLight('#c6ced6', 2.4); winLight.position.set(1.2, 6.5, -8); scene.add(winLight);
+  // 窗外的天光透過窗櫺照進屋裏，在地上投下格子影
+  winLight.userData.follow = true;
+  // 從窗口斜斜射入的一道光柱
+  {
+    const dir = new THREE.Vector3(-1.2, -6.5, 8).normalize(), len = 3.4;
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.3, len), new THREE.MeshBasicMaterial({ color: '#dfe6ee', transparent: true, opacity: 0.07, depthWrite: false, blending: THREE.AdditiveBlending }));
+    const start = new THREE.Vector3(0, 1.7, -3.55);
+    beam.position.copy(start).addScaledVector(dir, len / 2);
+    beam.lookAt(start.clone().addScaledVector(dir, len));
+    scene.add(beam);
+  }
 
   const W = 4, D = 3.6, H = 3.2;
   const wood = '#6d5039', wall = '#d8cdb6', beam = '#4a3325';

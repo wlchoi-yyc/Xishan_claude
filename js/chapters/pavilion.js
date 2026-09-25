@@ -102,7 +102,7 @@ function vistaColor(h, slope, x, z) {
 }
 
 function buildVista() {
-  const B = baseScene({ fog: '#d5dcd6', fogNear: 150, fogFar: 2300, sky: { top: '#6e9cc6', sunDir: [-0.6, 0.45, -0.3], sunColor: '#fff0cc' }, sun: ['#fff1d8', 1.7, [-300, 260, -120]], hemi: ['#e4ecf2', '#5d5a44', 1.25] });
+  const B = baseScene({ fog: '#d5dcd6', fogNear: 150, fogFar: 2300, sky: { top: '#6a9dcc', sunDir: [-0.45, 0.62, -0.35], sunColor: '#fff4dc' }, sun: ['#fff4e0', 1.9], hemi: ['#e4ecf2', '#5d5a44', 1.1] });
   const { scene } = B;
   const terrain = makeTerrain({ size: 2800, seg: 200, heightAt: vistaHeight, colorAt: vistaColor });
   scene.add(terrain);

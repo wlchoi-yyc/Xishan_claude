@@ -87,9 +87,9 @@ function summitColor(h, slope, x, z) {
 // ---------------- 場景 ----------------
 function buildSummit() {
   const B = baseScene({
-    fog: '#d9e2e4', fogNear: 300, fogFar: 3600,
-    sky: { top: '#5f95c8', horizon: '#dde6e6', sunDir: [-0.6, 0.55, 0.2], sunColor: '#fff2d4', radius: 5000 },
-    hemi: ['#e6eef4', '#5b5a44', 1.25], sun: ['#fff2d8', 1.6, [-300, 280, 100]],
+    fog: '#e0e2dc', fogNear: 300, fogFar: 3600,
+    sky: { top: '#5b92c6', horizon: '#e4e4da', sunDir: [-0.62, 0.36, 0.22], sunColor: '#ffe6bc', radius: 5000 },
+    hemi: ['#e6eaee', '#5b5a44', 1.1], sun: ['#ffe4ba', 1.9],
   });
   const { scene } = B;
   E.camera.far = 9000; E.camera.updateProjectionMatrix();
@@ -173,7 +173,7 @@ function skyState(w) {
     top: u.top.value.clone(), horizon: u.horizon.value.clone(), bottom: u.bottom.value.clone(), sunColor: u.sunColor.value.clone(), sunDir: u.sunDir.value.clone(),
     fog: w.scene.fog.color.clone(), near: w.scene.fog.near, far: w.scene.fog.far,
     hemiSky: w.hemi.color.clone(), hemiGround: w.hemi.groundColor.clone(), hemiI: w.hemi.intensity, sunI: w.sunLight.intensity, sunL: w.sunLight.color.clone(),
-    cloud: w.cloudMats[0].color.clone(),
+    cloud: w.cloudMats[0].color.clone(), riverE: w.riverMats[0].emissive.clone(),
     dark: u.dark.value, stars: w.stars.material.opacity, moon: w.moon.material.opacity, river: w.riverMats[0].emissiveIntensity,
   };
 }
@@ -202,11 +202,12 @@ async function skyTo(w, target, dur) {
     if (target.hemiI !== undefined) w.hemi.intensity = lerp(a.hemiI, target.hemiI, k);
     if (target.sunI !== undefined) w.sunLight.intensity = lerp(a.sunI, target.sunI, k);
     w.sunLight.color.lerpColors(a.sunL, T.sunL, k);
-    w.sunLight.position.copy(u.sunDir.value).multiplyScalar(400);
+    w.sunLight.userData.dir.copy(u.sunDir.value);
     if (target.dark !== undefined) u.dark.value = lerp(a.dark, target.dark, k);
     if (target.stars !== undefined) w.stars.material.opacity = lerp(a.stars, target.stars, k);
     if (target.moon !== undefined) w.moon.material.opacity = lerp(a.moon, target.moon, k);
     if (target.river !== undefined) w.riverMats.forEach(m => m.emissiveIntensity = lerp(a.river, target.river, k));
+    if (target.riverE) { const rc = new THREE.Color(target.riverE); w.riverMats.forEach(m => m.emissive.lerpColors(a.riverE, rc, k)); }
     if (target.cloud) { const cc = new THREE.Color(target.cloud); w.cloudMats.forEach(m => m.color.lerpColors(a.cloud, cc, k)); }
     if (target.sunStrength !== undefined) u.sunStrength.value = lerp(u.sunStrength.value, target.sunStrength, k);
   }, t => t);
@@ -370,7 +371,7 @@ export async function chapter9() {
   audio.music(null, 4);
   audio.ambience({ wind: 0.5, water: 0, birds: 0.45 }, 3);
   // 時間流逝：黃昏
-  const golden = skyTo(w, { top: '#5a7fb2', horizon: '#f0d2a2', sunColor: '#ffd08a', sunDir: [-1, 0.16, 0.1], fog: '#e8d4b0', hemiSky: '#f3dfbf', hemiGround: '#5a4a3a', hemiI: 1.1, sunI: 1.5, sunL: '#ffcf96', cloud: '#ffe4bd' }, 6);
+  const golden = skyTo(w, { top: '#5a7fb2', horizon: '#f0d2a2', sunColor: '#ffd08a', sunDir: [-1, 0.16, 0.1], fog: '#e8d4b0', hemiSky: '#f3dfbf', hemiGround: '#5a4a3a', hemiI: 1.1, sunI: 1.5, sunL: '#ffcf96', cloud: '#ffe4bd', riverE: '#b09070' }, 6);
   await ui.chapterCard('第九關', '找到柳宗元', '山頂・黃昏');
   await golden;
 
@@ -468,7 +469,7 @@ export async function chapter9() {
   await c1;
 
   // 第二階段：天地包圍自己（黃昏）
-  const dusk = skyTo(w, { top: '#34426e', horizon: '#ef8b5c', sunColor: '#ff9a5a', sunDir: [-1, 0.04, 0.12], fog: '#d99470', hemiSky: '#f0b38a', hemiGround: '#4a3638', hemiI: 0.95, sunI: 1.2, sunL: '#ff9c6a', river: 0.9, cloud: '#f5a07a' }, 12);
+  const dusk = skyTo(w, { top: '#34426e', horizon: '#ef8b5c', sunColor: '#ff9a5a', sunDir: [-1, 0.04, 0.12], fog: '#d99470', hemiSky: '#f0b38a', hemiGround: '#4a3638', hemiI: 0.95, sunI: 1.2, sunL: '#ff9c6a', river: 0.9, cloud: '#f5a07a', riverE: '#f09a6a' }, 12);
   audio.music('dusk', 6);
   await wait(3);
   ui.caption('縈青繚白', { hold: 4 });
@@ -521,7 +522,7 @@ export async function chapter9() {
   // 第四階段：蒼然暮色，自遠而至
   E.onUpdate.splice(E.onUpdate.indexOf(drift), 1);
   audio.ambience({ wind: 0.4, birds: 0, crickets: 0.8 }, 6);
-  const dark = skyTo(w, { top: '#0b1022', horizon: '#253047', sunColor: '#40304a', sunDir: [-1, -0.1, 0.1], fog: '#1b2233', near: 0, far: 26, farEase: true, hemiSky: '#3a4666', hemiGround: '#111018', hemiI: 0.45, sunI: 0.05, sunL: '#553a50', dark: 0.35, river: 0.1, cloud: '#262c42' }, 16);
+  const dark = skyTo(w, { top: '#0b1022', horizon: '#253047', sunColor: '#40304a', sunDir: [-1, -0.1, 0.1], fog: '#1b2233', near: 0, far: 26, farEase: true, hemiSky: '#3a4666', hemiGround: '#111018', hemiI: 0.45, sunI: 0.05, sunL: '#553a50', dark: 0.35, river: 0.1, cloud: '#262c42', riverE: '#2a3450' }, 16);
   await wait(4);
   const c3 = ui.caption('蒼然暮色，自遠而至，至無所見。', { gloss: '蒼茫的暮色由遠處漸漸逼近，直到甚麼也看不見。', hold: 8 });
   await dark;
@@ -563,7 +564,7 @@ async function epilogue(w, liu) {
   scene.add(lantern);
   tween(4, k => { glow.intensity = k * 6; });
   // 月出：稍微看得見
-  const night = skyTo(w, { top: '#101a36', horizon: '#34466a', fog: '#26324c', near: 20, far: 1400, hemiSky: '#8fa4d0', hemiGround: '#1c1c28', hemiI: 0.75, sunI: 0.25, sunL: '#9fb3e0', sunDir: [0.5, 0.35, -0.6], dark: 0.15, stars: 1, moon: 1, river: 0.35, cloud: '#3c4866' }, 5);
+  const night = skyTo(w, { top: '#101a36', horizon: '#34466a', fog: '#26324c', near: 20, far: 1400, hemiSky: '#8fa4d0', hemiGround: '#1c1c28', hemiI: 0.75, sunI: 0.25, sunL: '#9fb3e0', sunDir: [0.5, 0.35, -0.6], dark: 0.15, stars: 1, moon: 1, river: 0.35, cloud: '#3c4866', riverE: '#6a80b0' }, 5);
   await ui.chapterCard('終章', '精神之境', '');
   await night;
 

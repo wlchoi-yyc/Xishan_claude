@@ -7,6 +7,12 @@ const canvas = document.getElementById('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight);
+// 光影：柔和陰影與電影式色調
+const LOW_END = matchMedia('(pointer: coarse)').matches && (navigator.hardwareConcurrency || 4) <= 4;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.18;
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 6000);
 camera.rotation.order = 'YXZ';
@@ -107,6 +113,10 @@ export function setWorld(world) {
   E.player.yOffset = 0;
   // 鏡頭加入場景，以便手持工具等子物件能被渲染
   world.scene.add(camera);
+  E.sunLight = null;
+  world.scene.traverse(o => { if (o.isDirectionalLight && o.userData.follow && !E.sunLight) E.sunLight = o; });
+  if (E.sunLight) setupSunShadow(E.sunLight);
+  shadowScan = 0;
   E.player.eye = 1.6;
   E.fovTarget = 70;
   camera.fov = 70; camera.updateProjectionMatrix();
@@ -444,6 +454,43 @@ function updatePersons(dt) {
   }
 }
 
+// ---------------- 陰影 ----------------
+function setupSunShadow(sun) {
+  if (!sun.userData.dir) sun.userData.dir = sun.position.clone().normalize();
+  sun.castShadow = true;
+  const sz = LOW_END ? 1024 : 2048;
+  sun.shadow.mapSize.set(sz, sz);
+  const c = sun.shadow.camera;
+  c.left = -45; c.right = 45; c.top = 45; c.bottom = -45; c.near = 1; c.far = 400;
+  c.updateProjectionMatrix();
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.05;
+  if (!sun.target.parent) sun.parent.add(sun.target);
+}
+// 新加入場景的物件也要投射／接收陰影（每秒掃描一次）
+let shadowScan = 0;
+function scanShadows(scene) {
+  scene.traverse(o => {
+    if (!o.isMesh || o.userData.shadowSet) return;
+    o.userData.shadowSet = true;
+    const m = o.material;
+    if (Array.isArray(m) || !m) return;
+    if (o.userData.terrain) { o.receiveShadow = true; return; }
+    if (m.transparent || m.isShaderMaterial || m.isMeshBasicMaterial || m.isPointsMaterial || m.visible === false) return;
+    o.castShadow = true; o.receiveShadow = true;
+  });
+}
+const _fwd = new THREE.Vector3();
+function updateSun() {
+  const sun = E.sunLight;
+  if (!sun) return;
+  // 陰影範圍跟着玩家，並稍為偏向前方
+  _fwd.set(-Math.sin(E.player.yaw), 0, -Math.cos(E.player.yaw)).multiplyScalar(18).add(E.player.pos);
+  sun.target.position.copy(_fwd);
+  sun.position.copy(_fwd).addScaledVector(sun.userData.dir, 180);
+  sun.target.updateMatrixWorld();
+}
+
 // ---------------- 主迴圈 ----------------
 let last = performance.now();
 function frame(now) {
@@ -487,6 +534,11 @@ function frame(now) {
     camera.updateProjectionMatrix();
   }
 
+  if (E.world) {
+    shadowScan -= dt;
+    if (shadowScan <= 0) { shadowScan = 1; scanShadows(E.world.scene); }
+    updateSun();
+  }
   if (E.world && E.world.animated) for (const o of E.world.animated) o.userData.animate(E.time);
   if (E.world && E.world.update) E.world.update(dt, E.time);
   for (const fn of E.onUpdate) fn(dt, E.time);

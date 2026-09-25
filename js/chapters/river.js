@@ -46,7 +46,7 @@ function colorAt(h, slope, x, z) {
 }
 
 function buildRiver() {
-  const B = baseScene({ fog: '#d6ddd8', fogNear: 120, fogFar: 1500, sky: { top: '#6f9ec8', sunDir: [-0.5, 0.45, 0.1] }, sun: ['#fff0d0', 1.6, [-200, 180, 60]] });
+  const B = baseScene({ fog: '#d6ddd8', fogNear: 120, fogFar: 1500, sky: { top: '#6c9fcc', sunDir: [-0.55, 0.5, 0.15], sunColor: '#fff0d4' }, hemi: ['#e2ebf1', '#5a5842', 1.1], sun: ['#fff0d6', 1.9] });
   const { scene } = B;
   const terrain = makeTerrain({ size: 1800, sizeZ: 1400, seg: 180, segZ: 140, heightAt: terrainH, colorAt });
   scene.add(terrain);

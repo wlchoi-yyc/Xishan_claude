@@ -58,7 +58,7 @@ function forestHeight(x, z) {
 }
 
 function buildForest() {
-  const B = baseScene({ fog: '#c9d3cf', fogNear: 25, fogFar: 230, sky: { top: '#7ea6c9', sunDir: [0.4, 0.5, -0.6] }, sun: ['#fff0d0', 1.5, [60, 80, -40]] });
+  const B = baseScene({ fog: '#cfd8d6', fogNear: 25, fogFar: 230, sky: { top: '#76a6d2', sunDir: [0.55, 0.32, -0.6], sunColor: '#fff0d8' }, hemi: ['#dfeaf4', '#5a5440', 1.15], sun: ['#ffeccc', 1.9] });
   const { scene } = B;
   const terrain = makeTerrain({ size: 320, seg: 128, heightAt: forestHeight, colorAt: forestColor });
   scene.add(terrain);
@@ -271,7 +271,7 @@ function gladeHeight(x, z) {
   return fbm(x * 0.03, z * 0.03, 3, 9) * 1.5 + smoothstep(18, 45, r) * 6;
 }
 function buildGlade() {
-  const B = baseScene({ fog: '#b9c7b8', fogNear: 15, fogFar: 110, sky: { top: '#86a9c2', sunDir: [0.2, 0.7, -0.4] }, hemi: ['#e8f0e0', '#4a5a38', 1.3], sun: ['#fff0c8', 1.7, [20, 60, -10]] });
+  const B = baseScene({ fog: '#bfcdbd', fogNear: 15, fogFar: 110, sky: { top: '#7eaad0', sunDir: [0.25, 0.62, -0.45], sunColor: '#fff4d8' }, hemi: ['#e8f0e0', '#4a5a38', 1.1], sun: ['#fff0c8', 2.0] });
   const { scene } = B;
   const terrain = makeTerrain({ size: 140, seg: 70, heightAt: gladeHeight, colorAt: (h, s, x, z) => mixHex('#6d8a43', '#8e9a52', noise2(x * 0.15, z * 0.15, 3) * 0.5 + 0.5) });
   scene.add(terrain);
