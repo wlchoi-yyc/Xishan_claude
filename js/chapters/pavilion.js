@@ -26,7 +26,7 @@ const bumps = (() => {
     const x = Math.cos(a) * d, z = Math.sin(a) * d;
     if (Math.hypot(x - XISHAN.x, z - XISHAN.z) < 330) continue;
     if (x < -220 && x > -380) continue; // 湘江河道
-    out.push({ x, z, h: 18 + r() * 45, s: 50 + r() * 70 });
+    out.push({ x, z, h: 10 + r() * 26, s: 45 + r() * 60 });
   }
   return out;
 })();
@@ -36,8 +36,8 @@ function vistaHeight(x, z) {
   for (const b of bumps) { const dx = x - b.x, dz = z - b.z; const d2 = dx * dx + dz * dz; if (d2 < 9 * b.s * b.s) h += b.h * Math.exp(-d2 / (2 * b.s * b.s)); }
   // 亭所在的小山
   const d0 = Math.hypot(x, z);
-  h += 32 * Math.exp(-(d0 * d0) / (2 * 38 * 38));
-  if (d0 < 10) h = lerp(h, 32 + fbm(0, 0, 4, 3) * 18, 1 - smoothstep(6, 10, d0));
+  h += 75 * Math.exp(-(d0 * d0) / (2 * 55 * 55));
+  if (d0 < 10) h = lerp(h, 75 + fbm(0, 0, 4, 3) * 18, 1 - smoothstep(6, 10, d0));
   // 湘江河道
   const riverX = -300 + Math.sin(z * 0.004) * 30;
   const dr = Math.abs(x - riverX);
@@ -151,13 +151,15 @@ export async function chapter3() {
   unfreeze();
 
   // 座位
-  const seatDir = { x: Math.cos(Math.PI / 3), z: Math.sin(Math.PI / 3) };
+  // 座位在東側，背向西山；由此望西山，視線剛好穿過兩柱之間
+  const seatDir = { x: 1, z: 0 };
   const seatPos = { x: seatDir.x * 2.15, z: seatDir.z * 2.15 };
   const seat = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.6), new THREE.MeshBasicMaterial({ visible: false }));
   seat.position.set(seatPos.x * 1.05, world.heightAt(seatPos.x, seatPos.z) + 0.5, seatPos.z * 1.05);
   world.scene.add(seat);
   await clue(seat, '坐下', async () => {
     await moveTo(seatPos.x, seatPos.z, 1.2, { eye: 1.15 });
+    await turnTo(-Math.PI / 2, -0.05, 1);
   });
   setControls({ move: false, look: true, interact: true });
   ui.showDpad(false);

@@ -18,8 +18,25 @@ export async function enter(buildWorld, spawn, { fade = 1 } = {}) {
   return world;
 }
 
+/** 為細小或扁平的物件加上看不見的點擊範圍 */
+const _box = new THREE.Box3(), _c = new THREE.Vector3(), _s = new THREE.Vector3();
+export function addHitProxy(object, minR = 0.55) {
+  if (object.userData.hitProxy) return;
+  object.updateWorldMatrix(true, true);
+  _box.setFromObject(object);
+  if (_box.isEmpty()) return;
+  _box.getCenter(_c); _box.getSize(_s);
+  const r = Math.max(minR, Math.max(_s.x, _s.y, _s.z) / 2);
+  const ws = object.getWorldScale(new THREE.Vector3()).x || 1;
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r / ws, 8, 6), new THREE.MeshBasicMaterial({ visible: false }));
+  m.position.copy(object.worldToLocal(_c.clone()));
+  object.add(m);
+  object.userData.hitProxy = m;
+}
+
 /** 建立一個會觸發一次的「痕跡」，回傳 Promise（在觸發並完成 handler 後 resolve） */
 export function clue(object, label, handler, opts = {}) {
+  addHitProxy(object);
   return new Promise(res => {
     const it = addInteractable(Object.assign({
       object, label,

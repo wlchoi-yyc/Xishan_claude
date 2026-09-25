@@ -131,6 +131,7 @@ export async function chapter1() {
   const scene = world.scene, H = forestHeight;
   ui.mapVisit('forest');
   ui.mapRoute(['home', 'forest']);
+  if (document.getElementById('btnMap').classList.contains('hidden')) { ui.unlockButton('btnMap'); ui.toast('老僕把柳先生手繪的永州簡圖交給了你（右上角「地圖」）'); }
   ui.showDpad(true);
   await ui.chapterCard('第一關', '尋找舊足跡', '永州・城外山林');
   await ui.say('你', '柳先生常來這片山林……他會在哪裏？');

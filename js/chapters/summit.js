@@ -14,6 +14,7 @@ import { RECON } from '../data.js';
 const LEDGE = { x: -19, z: 4.5, y: -5.2 };   // 柳宗元坐的崖邊（山頂之下的一塊突石）
 const RIM = { x: -11, z: 2 };
 const TOP_R = 12;
+const DOME = 0.03;
 
 const lowBumps = (() => {
   const r = rng(404), out = [];
@@ -39,14 +40,14 @@ function distToPolyline(x, z, pts) {
   return best;
 }
 function distSeg(x, z, a, b) { return distToPolyline(x, z, [a, b]); }
-function summitRim() { return -0.015 * Math.hypot(RIM.x, RIM.z) ** 2; }
+function summitRim() { return -DOME * Math.hypot(RIM.x, RIM.z) ** 2; }
 
 function summitH(x, z) {
   const r = Math.hypot(x, z);
-  let h = -0.015 * r * r + fbm(x * 0.08, z * 0.08, 3, 1) * 0.35;
+  let h = -DOME * r * r + fbm(x * 0.08, z * 0.08, 3, 1) * 0.35;
   if (r > TOP_R) {
-    const rim = -0.015 * TOP_R * TOP_R;
-    h = rim - 262 * (1 - Math.exp(-(r - TOP_R) / 55)) + fbm(x * 0.03, z * 0.03, 3, 2) * 6 * Math.min(1, (r - TOP_R) / 30);
+    const rim = -DOME * TOP_R * TOP_R;
+    h = rim - 262 * (1 - Math.exp(-(r - TOP_R) / 85)) + fbm(x * 0.03, z * 0.03, 3, 2) * 6 * Math.min(1, (r - TOP_R) / 30);
   }
   // 崖邊小平台與下去的小徑
   const dl = Math.hypot(x - LEDGE.x, z - LEDGE.z);
@@ -102,15 +103,15 @@ function buildSummit() {
     scene.add(m);
   }
   // 山頂的樹與石
-  const trees = [{ type: 'pine', x: 4, z: -8.5, s: 1.1, rot: 1 }, { type: 'pine', x: -2, z: 9.5, s: 0.9, rot: 2 }];
+  const trees = [{ type: 'pine', x: 7, z: -9, s: 1.1, rot: 1 }, { type: 'pine', x: 4, z: 10, s: 0.9, rot: 2 }];
   scene.add(makeTrees(trees, summitH));
   // 遠處山坡的樹（稀疏、大）
   const farTrees = scatter(700, 29, (x, z, r) => { const d = Math.hypot(x, z); if (d < 45 || d > 380) return false; return { type: 'pine', s: 3 + r() * 2 }; }, { x0: -380, x1: 380, z0: -380, z1: 380 });
   scene.add(makeTrees(farTrees, summitH));
   const rr = rng(71);
-  const rockPos = [[-6.5, 6.5], [-3, -8], [8, 5.5], [1, 3]];
+  const rockPos = [[8, 5.5], [6.5, -6.5], [9.5, -1.5]];
   rockPos.forEach(([x, z], i) => { const s = 1 + rr() * 1.4; const m = makeRock(s, '#948d7c', 700 + i); m.position.set(x, summitH(x, z) + s * 0.3, z); m.scale.y = 0.8 + rr() * 0.8; scene.add(m); });
-  for (let i = 0; i < 18; i++) { const a = rr() * 6.28, d = rr() * 11; const x = Math.cos(a) * d, z = Math.sin(a) * d; const g = makeGrassPatch(10, 0.9, { seed: 800 + i, color: '#9aa35c' }); g.position.set(x, summitH(x, z), z); scene.add(g); }
+  for (let i = 0; i < 12; i++) { const a = rr() * 6.28, d = 4 + rr() * 7; const x = Math.cos(a) * d, z = Math.sin(a) * d; if (x < 2) continue; const g = makeGrassPatch(8, 0.8, { seed: 800 + i, color: '#9aa35c', height: 0.4 }); g.position.set(x, summitH(x, z), z); scene.add(g); }
   // 雲
   const cloudM = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.85 });
   const clouds = new THREE.Group();
@@ -197,7 +198,7 @@ let W = null;
 export async function chapter7() {
   audio.ambience({ wind: 0.7, water: 0, birds: 0.3 });
   audio.music('xishan');
-  W = await enter(buildSummit, { x: 6, z: -1, yaw: Math.PI / 2, pitch: -0.12 }, { fade: 1.6 });
+  W = await enter(buildSummit, { x: -3, z: -1, yaw: Math.PI / 2, pitch: -0.14 }, { fade: 1.6 });
   ui.showDpad(true);
   await ui.chapterCard('第七關', '西山之頂', '全遊戲第一個高潮');
   freeze();
@@ -297,7 +298,7 @@ export async function chapter7() {
 
 // ================= 第八關 =================
 export async function chapter8() {
-  if (!W) { W = await enter(buildSummit, { x: 6, z: -1, yaw: Math.PI / 2, pitch: -0.12 }); audio.music('xishan'); audio.ambience({ wind: 0.7, birds: 0.3 }); }
+  if (!W) { W = await enter(buildSummit, { x: -3, z: -1, yaw: Math.PI / 2, pitch: -0.14 }); audio.music('xishan'); audio.ambience({ wind: 0.7, birds: 0.3 }); }
   freeze();
   await ui.chapterCard('第八關', '為甚麼西山「怪特」？', '');
   await ui.say('你', '柳先生以前明明已經「遊遍」永州……');
@@ -344,7 +345,7 @@ export async function chapter8() {
 
 // ================= 第九關 ＋ 終章 =================
 export async function chapter9() {
-  if (!W) { W = await enter(buildSummit, { x: 6, z: -1, yaw: Math.PI / 2, pitch: -0.12 }); }
+  if (!W) { W = await enter(buildSummit, { x: -3, z: -1, yaw: Math.PI / 2, pitch: -0.14 }); }
   const w = W, scene = w.scene;
   freeze();
   audio.music(null, 4);
@@ -364,7 +365,7 @@ export async function chapter9() {
   const cup = makeCup(); cup.scale.setScalar(1.4); cup.position.set(LEDGE.x - 0.3, LEDGE.y + 0.02, LEDGE.z - 0.55); scene.add(cup);
   w.blockers.push({ x: LEDGE.x, z: LEDGE.z, r: 0.5 });
   // 足跡：從山頂一路到崖邊
-  const fp = pathPoints([{ x: 7, z: -2 }, { x: 2, z: -1 }, { x: -3, z: -1.5 }, { x: -8, z: 0.5 }, RIM, { x: (RIM.x + LEDGE.x) / 2, z: (RIM.z + LEDGE.z) / 2 }, { x: LEDGE.x + 1.6, z: LEDGE.z - 0.3 }], 0.75);
+  const fp = pathPoints([{ x: 5, z: 2 }, { x: 1, z: 3.5 }, { x: -4, z: 3 }, { x: -8, z: 2.5 }, RIM, { x: (RIM.x + LEDGE.x) / 2, z: (RIM.z + LEDGE.z) / 2 }, { x: LEDGE.x + 1.6, z: LEDGE.z - 0.3 }], 0.75);
   scene.add(makeFootprints(fp, summitH, { opacity: 0.6 }));
 
   await ui.say('', '夕陽西斜。山頂的泥地上，有一行腳印。');
@@ -420,10 +421,11 @@ export async function chapter9() {
   await ui.bigAction('坐下');
 
   // 並肩而坐
-  const seat = { x: LEDGE.x - 0.1, z: LEDGE.z + 1.35 };
+  // 坐在柳宗元身旁稍後的位置：望向遠方時，他就在視野右邊
+  const seat = { x: LEDGE.x + 0.8, z: LEDGE.z + 1.2 };
   await Promise.all([
     moveTo(seat.x, seat.z, 2.2, { eye: 0.95 }),
-    turnTo(Math.PI / 2, -0.04, 2.4),
+    turnTo(Math.PI / 2 - 0.22, -0.04, 2.4),
   ]);
   watch(liu, false);
   liu.userData.lookTarget = null;
@@ -532,6 +534,15 @@ async function epilogue(w, liu) {
   const scene = w.scene;
   ui.objective('');
   ui.showDpad(false);
+  // 燈籠：夜裏山頂上的一點暖光
+  const lantern = new THREE.Group();
+  const paper = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.3, 10), new THREE.MeshBasicMaterial({ color: '#ffcf8a' }));
+  paper.position.y = 0.2; lantern.add(paper);
+  const capTop = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.14, 0.05, 10), lam('#3a2a1c')); capTop.position.y = 0.37; lantern.add(capTop);
+  const glow = new THREE.PointLight('#ffb870', 0, 14, 1.5); glow.position.y = 0.3; lantern.add(glow);
+  lantern.position.set(LEDGE.x + 0.9, LEDGE.y, LEDGE.z + 0.4);
+  scene.add(lantern);
+  tween(4, k => { glow.intensity = k * 6; });
   // 月出：稍微看得見
   const night = skyTo(w, { top: '#101a36', horizon: '#34466a', fog: '#26324c', near: 20, far: 1400, hemiSky: '#8fa4d0', hemiGround: '#1c1c28', hemiI: 0.75, sunI: 0.25, sunL: '#9fb3e0', sunDir: [0.5, 0.35, -0.6], dark: 0.15, stars: 1, moon: 1, river: 0.35 }, 5);
   await ui.chapterCard('終章', '精神之境', '');
@@ -590,12 +601,12 @@ async function epilogue(w, liu) {
   const target = new THREE.Vector3(LEDGE.x, LEDGE.y + 1.4, LEDGE.z + 0.6);
   E.freeCam = { pos: start.clone(), target: start.clone().add(new THREE.Vector3(-10, 0, 0)) };
   audio.whoosh();
-  const end = new THREE.Vector3(-78, 16, 58);
-  const lookEnd = new THREE.Vector3(LEDGE.x + 12, -4, LEDGE.z - 4);
+  const end = new THREE.Vector3(-150, 20, 115);
+  const lookEnd = new THREE.Vector3(0, -40, 0);
   await tween(14, k => {
     const e = k * k * (3 - 2 * k);
     E.freeCam.pos.lerpVectors(start, end, e);
-    E.freeCam.pos.y += Math.sin(e * Math.PI) * 12;
+    E.freeCam.pos.y += Math.sin(e * Math.PI) * 20;
     E.freeCam.target.lerpVectors(target, lookEnd, Math.min(1, e * 1.4));
   }, t => t);
   await ui.caption('然後知吾嚮之未始遊，遊於是乎始。', { gloss: '這才知道我從前未曾真正遊賞過；真正的遊賞，從這一次才開始。', hold: 0 });

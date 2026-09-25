@@ -1,6 +1,6 @@
 // 第五關：山路消失了（西山山腳）——斫榛莽，焚茅茷
 // 第六關：攀援而登（西山山腰）
-import { E, THREE, ui, audio, enter, clue, watch, until } from './common.js';
+import { E, THREE, ui, audio, enter, clue, watch, until, addHitProxy } from './common.js';
 import { addInteractable, removeInteractable, freeze, unfreeze, wait, lookAt, moveTo, turnTo, tween, setControls, lerp, raycastFrom, angleDiff } from '../engine.js';
 import {
   baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makeRibbon, makeFootprints, pathPoints, makeFire, makeSmoke, makeStaff,
@@ -97,6 +97,9 @@ function buildFoot() {
     t.scale.set(1.1, 1.1, 1.1);
     scene.add(t);
     t.userData.heat = 0; t.userData.kind = 'grass';
+    // 草葉很細，另加一個看不見的圓柱方便點擊／拖動
+    const hit = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 2, 8), new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.y = 1; t.add(hit);
     thatch.push(t);
   });
   // 更遠處的茂密草木（純裝飾）
@@ -180,8 +183,8 @@ export async function chapter5() {
   const torchOnGround = makeTorch(false); torchOnGround.rotation.z = 1.3; torchOnGround.position.set(-0.8, H(-0.8, 4.4) + 0.08, 4.4); scene.add(torchOnGround);
 
   const tools = new Set();
-  const heldAxe = makeAxe(); heldAxe.position.set(0.32, -0.62, -0.62); heldAxe.rotation.set(-0.2, 0, 0.35); heldAxe.visible = false; E.camera.add(heldAxe);
-  const heldTorch = makeTorch(true); heldTorch.position.set(0.3, -0.6, -0.6); heldTorch.rotation.set(-0.3, 0, 0.2); heldTorch.visible = false; E.camera.add(heldTorch);
+  const heldAxe = makeAxe(); heldAxe.position.set(0.38, -0.66, -0.8); heldAxe.rotation.set(-0.2, 0, 0.35); heldAxe.visible = false; E.camera.add(heldAxe);
+  const heldTorch = makeTorch(true); heldTorch.scale.setScalar(0.7); heldTorch.position.set(0.42, -0.62, -0.95); heldTorch.rotation.set(-0.35, 0, 0.25); heldTorch.visible = false; E.camera.add(heldTorch);
   let current = null;
   const toolHandlers = {};
   const setTool = (id) => {
@@ -458,6 +461,7 @@ export async function chapter6() {
       h.position.set(cliffX(y) + 0.75, y, L.z + z * 0.8);
       h.rotation.y = Math.PI / 2;
       scene.add(h);
+      addHitProxy(h, 0.45);
       return h;
     });
     await turnTo(Math.PI / 2, 0.45, 0.8);
