@@ -117,8 +117,8 @@ function buildFoot() {
   path.material = new THREE.MeshLambertMaterial({ color: '#8e7c5a', side: THREE.DoubleSide });
   path.visible = false; scene.add(path);
 
-  const bushWall = { type: 'box', minX: -10, maxX: -6.5, minZ: -7, maxZ: 7, r: 0.4 };
-  const grassWall = { type: 'box', minX: -15.5, maxX: -11.5, minZ: -7, maxZ: 7, r: 0.4 };
+  const bushWall = { type: 'box', minX: -10, maxX: -4.4, minZ: -7, maxZ: 7, r: 0.6 };   // 與灌木保持約兩三步距離
+  const grassWall = { type: 'box', minX: -15.5, maxX: -9.4, minZ: -7, maxZ: 7, r: 0.6 };
   return {
     scene, heightAt: footH, bushes, thatch, path, bushWall, grassWall, animated: [clouds],
     clamp: v => { v.z = Math.max(-5.8, Math.min(5.8, v.z)); v.x = Math.max(-44, Math.min(12, v.x)); },
@@ -190,6 +190,13 @@ export async function chapter5() {
   const tools = new Set();
   const heldAxe = makeAxe(); heldAxe.position.set(0.38, -0.66, -0.8); heldAxe.rotation.set(-0.2, 0, 0.35); heldAxe.visible = false; E.camera.add(heldAxe);
   const heldTorch = makeTorch(true); heldTorch.scale.setScalar(0.7); heldTorch.position.set(0.42, -0.62, -0.95); heldTorch.rotation.set(-0.35, 0, 0.25); heldTorch.visible = false; E.camera.add(heldTorch);
+  // 手持工具永遠畫在最上層，不會插進草木裏
+  for (const tool of [heldAxe, heldTorch]) tool.traverse(o => {
+    if (!o.material) return;
+    o.material = o.material.clone(); o.material.depthTest = false; o.material.depthWrite = false;
+    o.renderOrder = 999; o.userData.shadowSet = true; o.castShadow = false;
+    if (o.isLight) return;
+  });
   let current = null;
   const toolHandlers = {};
   const setTool = (id) => {
@@ -252,7 +259,7 @@ export async function chapter5() {
         const h = hitTarget(x, y);
         if (!h) return false;
         if (h.obj.userData.kind !== 'bush') { ui.toast('茅草太密，砍不完——試試用火把。'); return true; }
-        if (h.dist > 4.2) { ui.toast('太遠了，走近一點。'); return true; }
+        if (h.dist > 4.8) { ui.toast('太遠了，走近一點。'); return true; }
         if (swinging) return true;
         swing();
         audio.chop();

@@ -105,7 +105,8 @@ export function setPlayer(x, z, yaw = 0, pitch = 0) {
 export function setWorld(world) {
   if (E.world && E.world.dispose) E.world.dispose();
   clearInteractables();
-  E.persons.clear();
+  // 只清除不屬於新場景的人物（建構場景時加入的人物要保留）
+  for (const p of [...E.persons]) { let o = p; while (o.parent) o = o.parent; if (o !== world.scene) E.persons.delete(p); }
   E.onUpdate.length = 0;
   E.tool = null;
   E.world = world;
@@ -377,7 +378,7 @@ function updateMarkers() {
   const w = window.innerWidth, h = window.innerHeight;
   for (const it of E.interactables) {
     if (!it.el) continue;
-    if (!it.enabled || !it.object.visible || it.hideMarker) { it.el.style.display = 'none'; continue; }
+    if (!it.enabled || !it.object.visible || it.hideMarker || !E.input.interact) { it.el.style.display = 'none'; continue; }
     it.object.getWorldPosition(projV);
     projV.y += it.markerOffset;
     const dist = projV.distanceTo(camera.position);
@@ -429,10 +430,13 @@ function updatePersons(dt) {
     const ud = person.userData;
     if (ud.update) ud.update(dt, E.time);
     const target = ud.watchCamera ? camera.position : ud.lookTarget;
+    const seated = ud.pose === 'sit' || ud.pose === 'lie';
+    const k = (sp) => Math.min(1, dt * sp);
     if (!target) {
-      // 頭部慢慢回正
-      ud.head.rotation.y *= (1 - Math.min(1, dt * 2));
-      ud.head.rotation.x *= (1 - Math.min(1, dt * 2));
+      // 頭部與上身慢慢回正
+      ud.head.rotation.y *= 1 - k(2);
+      ud.head.rotation.x *= 1 - k(2);
+      if (ud.twist !== undefined) { ud.twist *= 1 - k(1.5); ud.upper.rotation.y = ud.twist; }
       continue;
     }
     person.getWorldPosition(headWorld);
@@ -441,16 +445,24 @@ function updatePersons(dt) {
     const parentYaw = person.parent ? person.parent.rotation.y : 0;
     const localWant = want - parentYaw;
     const speed = ud.turnSpeed ?? 2.2;
-    if (ud.bodyFollow !== false) {
+    // 坐着時雙腳不動，只扭轉上身與頭，避免腿插進地裏
+    if (ud.bodyFollow !== false && !seated) {
       const d = angleDiff(person.rotation.y, localWant);
-      person.rotation.y += d * Math.min(1, dt * speed);
+      person.rotation.y += d * k(speed);
     }
-    const remain = THREE.MathUtils.clamp(angleDiff(person.rotation.y, localWant), -1.1, 1.1);
-    ud.head.rotation.y += (remain - ud.head.rotation.y) * Math.min(1, dt * speed * 1.6);
+    let remain = angleDiff(person.rotation.y, localWant);
+    if (seated) {
+      const tw = THREE.MathUtils.clamp(remain * 0.45, -0.75, 0.75);
+      ud.twist = (ud.twist || 0) + (tw - (ud.twist || 0)) * k(speed);
+      ud.upper.rotation.y = ud.twist;
+      remain -= ud.twist;
+    }
+    remain = THREE.MathUtils.clamp(remain, -1.15, 1.15);
+    ud.head.rotation.y += (remain - ud.head.rotation.y) * k(speed * 1.6);
     ud.head.getWorldPosition(headWorld);
     const pitch = Math.atan2(target.y - headWorld.y, Math.hypot(dx, dz));
     const wantX = THREE.MathUtils.clamp(-pitch, -0.6, 0.6);
-    ud.head.rotation.x += (wantX - ud.head.rotation.x) * Math.min(1, dt * speed * 1.6);
+    ud.head.rotation.x += (wantX - ud.head.rotation.x) * k(speed * 1.6);
   }
 }
 

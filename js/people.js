@@ -33,11 +33,11 @@ const PRESETS = {
   friend1: { outfit: 'robe', robe: '#9a8466', inner: '#ece3cf', trim: '#5e4b36', belt: '#3a3029', cap: 'futou', beard: 'short', hair: '#15130f', skin: '#dcb18c', height: 0.98 },
   friend2: { outfit: 'robe', robe: '#6f8190', inner: '#e8e3d6', trim: '#3f4d58', belt: '#2d2a26', cap: 'kerchief', capColor: '#2c3a3a', beard: 'long', hair: '#1b1917', skin: '#e0b58f', height: 1.01 },
   // 老僕：灰髮、短鬚、短褐
-  oldServant: { outfit: 'tunic', robe: '#7d6a52', inner: '#d9cfbb', trim: '#4f4232', belt: '#3b2f24', pants: '#5b5043', wrap: '#c9bd9c', cap: 'kerchief', capColor: '#4a524e', beard: 'short', hair: '#8e8a83', skin: '#d4a883', height: 0.95, stoop: 0.12 },
+  oldServant: { outfit: 'tunic', clasp: true, robe: '#7d6a52', inner: '#d9cfbb', trim: '#4f4232', belt: '#3b2f24', pants: '#5b5043', wrap: '#c9bd9c', cap: 'kerchief', capColor: '#4a524e', beard: 'short', hair: '#8e8a83', skin: '#d4a883', height: 0.95, stoop: 0.12 },
   // 年輕僕人
-  servant: { outfit: 'tunic', robe: '#8c7250', inner: '#ddd3bd', trim: '#5a4630', belt: '#3b2f24', pants: '#5f5242', wrap: '#cfc2a0', cap: 'kerchief', capColor: '#51605d', beard: null, hair: '#1b1916', skin: '#d9a883', height: 0.95 },
+  servant: { outfit: 'tunic', clasp: true, robe: '#8c7250', inner: '#ddd3bd', trim: '#5a4630', belt: '#3b2f24', pants: '#5f5242', wrap: '#cfc2a0', cap: 'kerchief', capColor: '#51605d', beard: null, hair: '#1b1916', skin: '#d9a883', height: 0.95 },
   // 船家：斗笠、蓑衣
-  boatman: { outfit: 'tunic', robe: '#5e5a4e', inner: '#cdc4ae', trim: '#3d3a32', belt: '#2d2a24', pants: '#4b473d', wrap: '#bfb393', cap: 'hat', cape: true, beard: 'stubble', hair: '#1b1916', skin: '#c79770', height: 0.97 },
+  boatman: { outfit: 'tunic', clasp: true, robe: '#5e5a4e', inner: '#cdc4ae', trim: '#3d3a32', belt: '#2d2a24', pants: '#4b473d', wrap: '#bfb393', cap: 'hat', cape: true, beard: 'stubble', hair: '#1b1916', skin: '#c79770', height: 0.97 },
   // 玩家（終章鏡頭拉遠時出現）
   student: { outfit: 'tunic', robe: '#3f6159', inner: '#e3dccb', trim: '#27403a', belt: '#2d2a24', pants: '#3a4440', wrap: '#d3c9ae', cap: 'kerchief', capColor: '#23302d', beard: null, hair: '#171513', skin: '#e3bb98', height: 0.93 },
 };
@@ -223,10 +223,10 @@ export function makePerson(opts = {}) {
   const ud = root.userData;
   Object.assign(ud, { head, armL, armR, upper, body, pose: 'stand', walkT: 0, walking: false, name: o.name || '' });
   const baseStoop = o.stoop || 0;
-  let t = Math.random() * 10, blinkIn = 1 + Math.random() * 3, blinkT = 0;
+  let t = Math.random() * 10, blinkIn = 1 + Math.random() * 3, blinkT = 0, glance = 0, glanceIn = 2 + Math.random() * 3;
 
   ud.setPose = (pose) => {
-    ud.pose = pose;
+    ud.pose = pose; ud.twist = 0;
     body.rotation.set(0, 0, 0); body.position.set(0, 0, 0);
     standLower.visible = pose !== 'sit'; sitLower.visible = pose === 'sit';
     upper.position.set(0, 0, 0); upper.rotation.set(baseStoop, 0, 0);
@@ -249,34 +249,54 @@ export function makePerson(opts = {}) {
     if (blinkT > 0) blinkT -= dt;
     const eyeY = blinkT > 0 ? 0.12 : 1;
     eyes[0].scale.y = eyes[1].scale.y = eyeY;
-    // 說話：嘴巴開合、輕輕點頭
+    // 說話：嘴巴開合、輕輕點頭、偶爾抬手比劃
     const talking = ud.name && E.speaker === ud.name;
     if (talking) {
       mouth.scale.y = 1 + Math.abs(Math.sin(t * 16)) * 2.6 + Math.abs(Math.sin(t * 7)) * 1.2;
       face.rotation.x = Math.sin(t * 5) * 0.035;
+      face.rotation.z = Math.sin(t * 1.7) * 0.03;
     } else {
       mouth.scale.y += (1 - mouth.scale.y) * Math.min(1, dt * 10);
       face.rotation.x *= 1 - Math.min(1, dt * 5);
+      face.rotation.z *= 1 - Math.min(1, dt * 5);
     }
     // 軟腳、頭巾隨風
     ribbons.forEach((rb, i) => { rb.rotation.x = (i < 2 ? 0.18 : 0.3) + Math.sin(t * 1.7 + i) * 0.08 + Math.sin(t * 3.1) * 0.03; });
     // 呼吸
     torso.scale.x = torso.scale.z = 1 + Math.sin(t * 1.6) * 0.012;
+    const ease = (cur, want, sp = 4) => cur + (want - cur) * Math.min(1, dt * sp);
     if (ud.walking) {
       ud.walkT += dt * 7;
       const sw = Math.sin(ud.walkT);
       armL.rotation.x = sw * 0.4; armR.rotation.x = -sw * 0.4;
+      armL.rotation.z = ease(armL.rotation.z, 0.1); armR.rotation.z = ease(armR.rotation.z, -0.1);
       legs.forEach((lg, i) => { lg.rotation.x = (i ? -sw : sw) * 0.45; });
       body.position.y = Math.abs(sw) * 0.035;
       standLower.rotation.z = sw * 0.02;
     } else {
       legs.forEach(lg => { lg.rotation.x *= 0.85; });
-      standLower.rotation.z = Math.sin(t * 1.1) * 0.008;
+      // 站着時重心左右輕移，不會像木頭一樣
+      standLower.rotation.z = Math.sin(t * 0.45) * 0.012;
+      if (ud.pose === 'stand') {
+        body.rotation.z = Math.sin(t * 0.45) * 0.012;
+        upper.rotation.z = -Math.sin(t * 0.45) * 0.01;
+      }
       if (ud.pose === 'stand' && !ud.customArms) {
-        armL.rotation.x *= 0.9; armR.rotation.x *= 0.9;
+        // 僕役雙手交握於身前；說話時右手比劃
+        let lx = -0.06, lz = 0.1, rx = -0.06, rz = -0.1;
+        if (o.clasp) { lx = -0.55; lz = -0.3; rx = -0.55; rz = 0.3; }
+        if (talking) { rx = -0.75 + Math.sin(t * 2.3) * 0.25; rz = o.clasp ? 0.1 : -0.15; }
+        armL.rotation.x = ease(armL.rotation.x, lx); armL.rotation.z = ease(armL.rotation.z, lz);
+        armR.rotation.x = ease(armR.rotation.x, rx); armR.rotation.z = ease(armR.rotation.z, rz);
         body.position.y = Math.sin(t * 1.6) * 0.003;
       }
     }
+    // 沒有注視目標時，偶爾轉頭看看四周
+    if (!ud.watchCamera && !ud.lookTarget) {
+      glanceIn -= dt;
+      if (glanceIn <= 0) { glance = (Math.random() - 0.5) * 1.0; glanceIn = 3 + Math.random() * 4; }
+      face.rotation.y = ease(face.rotation.y, glance, 1.5);
+    } else face.rotation.y = ease(face.rotation.y, 0, 3);
     if (ud.extraUpdate) ud.extraUpdate(dt);
   };
   return root;

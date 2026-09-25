@@ -137,6 +137,24 @@ function buildForest() {
   return world;
 }
 
+// 把點推離溪流中線，確保在岸上
+function onBank(p, minD = 4.2) {
+  let { x, z } = p;
+  for (let it = 0; it < 12; it++) {
+    let best = 1e9, bx = 0, bz = 0;
+    for (let i = 0; i < CREEK.length - 1; i++) {
+      const a = CREEK[i], b = CREEK[i + 1], dx = b.x - a.x, dz = b.z - a.z;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz)));
+      const cx = a.x + dx * t, cz = a.z + dz * t, d = Math.hypot(x - cx, z - cz);
+      if (d < best) { best = d; bx = cx; bz = cz; }
+    }
+    if (best >= minD) break;
+    const L = best || 1e-3;
+    const nx = best > 1e-3 ? (x - bx) / L : 1, nz = best > 1e-3 ? (z - bz) / L : 0;
+    x = bx + nx * minD; z = bz + nz * minD;
+  }
+  return { x, z };
+}
 function place(obj, x, z, h, lift = 0) { obj.position.set(x, h(x, z) + lift, z); return obj; }
 
 export async function chapter1() {
@@ -160,11 +178,14 @@ export async function chapter1() {
   unfreeze();
 
   // --- 迴溪：腳印 → 草席 ---
-  const fpStart = { x: 60, z: 50 };
-  const fpPts = pathPoints([fpStart, { x: 66, z: 38 }, { x: 60, z: 24 }, { x: 48, z: 16 }, { x: 40, z: 12 }], 0.75);
+  // 腳印沿着溪岸（東岸）走，不會走進水裏
+  const bankLine = [{ x: 64, z: 55 }, { x: 74, z: 40 }, { x: 68, z: 22 }, { x: 60, z: 10 }, { x: 50, z: 7 }, { x: 42, z: 4 }].map(p => onBank(p, 4.5));
+  const fpStart = bankLine[0];
+  const fpPts = pathPoints(bankLine, 0.75).map(p => onBank(p, 4));
   const prints = makeFootprints(fpPts, H, { opacity: 0.6 });
   prints.visible = true; scene.add(prints);
-  const mat = place(makeMat(), 40, 12, H, 0.02); mat.rotation.y = 0.6; scene.add(mat);
+  const matPos = onBank({ x: 39, z: 3 }, 5.5);
+  const mat = place(makeMat(), matPos.x, matPos.z, H, 0.02); mat.rotation.y = 0.6; scene.add(mat);
   const fpHit = new THREE.Mesh(new THREE.SphereGeometry(1.2), new THREE.MeshBasicMaterial({ visible: false }));
   place(fpHit, fpStart.x, fpStart.z, H, 0.3); scene.add(fpHit);
 

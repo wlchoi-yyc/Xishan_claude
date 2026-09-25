@@ -111,6 +111,9 @@ function buildRoom() {
   servant.position.set(2.6, 0, 1.9); servant.rotation.y = -2.4;
   scene.add(servant);
   E.persons.add(servant);
+  // 老僕一直留意着來客
+  servant.userData.watchCamera = true;
+  servant.userData.turnSpeed = 1.6;
 
   // 窗外：陰暗的永州城
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 300), lam('#565a52')); ground.rotation.x = -Math.PI / 2; ground.position.set(0, -1.5, -150); scene.add(ground);
@@ -263,8 +266,6 @@ export async function prologue() {
       ui.objective('尋找柳宗元：循着他留下的痕跡，找出他的去向', '從東邊的門離開柳宅。');
       ui.toast('新任務：尋找柳宗元');
       doorIt.enabled = true; doorIt.hint = true;
-      watch(R.servant, false);
-      R.servant.userData.lookTarget = null;
       unfreeze();
     },
   });

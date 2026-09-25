@@ -153,6 +153,8 @@ export async function chapter4() {
   unfreeze();
 
   await clue(boatman, '船家', async () => {
+    // 走到碼頭盡頭，與船家相隔約兩三步
+    if (E.player.pos.x > 79) await moveTo(78.6, 0, Math.min(2.5, (E.player.pos.x - 78.6) * 0.3));
     watch(boatman, true);
     await lookAt(new THREE.Vector3(boat.position.x + 2.2, 2, 0), 0.8);
     await ui.say('船家', '要過江嗎？');

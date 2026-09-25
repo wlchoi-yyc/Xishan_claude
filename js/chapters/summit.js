@@ -383,7 +383,8 @@ export async function chapter9() {
   scene.add(liu); E.persons.add(liu);
   const pot = makeWinePot('#7d8b75'); pot.position.set(LEDGE.x + 0.1, LEDGE.y, LEDGE.z - 0.75); scene.add(pot);
   const cup = makeCup(); cup.scale.setScalar(1.4); cup.position.set(LEDGE.x - 0.3, LEDGE.y + 0.02, LEDGE.z - 0.55); scene.add(cup);
-  w.blockers.push({ x: LEDGE.x, z: LEDGE.z, r: 0.5 });
+  // 柳宗元身體與伸出的雙腿（面向 -x）都不能踩上去
+  w.blockers.push({ x: LEDGE.x, z: LEDGE.z, r: 0.55 }, { x: LEDGE.x - 0.6, z: LEDGE.z, r: 0.55 });
   // 足跡：從山頂一路到崖邊
   const fp = pathPoints([{ x: 5, z: 2 }, { x: 1, z: 3.5 }, { x: -4, z: 3 }, { x: -8, z: 2.5 }, RIM, { x: (RIM.x + LEDGE.x) / 2, z: (RIM.z + LEDGE.z) / 2 }, { x: LEDGE.x + 1.6, z: LEDGE.z - 0.3 }], 0.75);
   scene.add(makeFootprints(fp, summitH, { opacity: 0.6 }));
@@ -405,7 +406,10 @@ export async function chapter9() {
   await wait(0.8);
   // 他聽到腳步聲，慢慢回頭
   const headTarget = () => new THREE.Vector3(liu.position.x, liu.position.y + 1.05, liu.position.z);
-  await lookAt(headTarget(), 1.2);
+  // 繞到他身旁站定（與他保持約一步半的距離）
+  const standAt = { x: LEDGE.x - 0.3, z: LEDGE.z + 1.75 };
+  await Promise.all([moveTo(standAt.x, standAt.z, 1.8), lookAt(headTarget(), 1.8)]);
+  await lookAt(headTarget(), 0.4);
   await wait(0.6);
   // 先轉頭，再慢慢轉身
   liu.userData.bodyFollow = false;
@@ -442,7 +446,7 @@ export async function chapter9() {
 
   // 並肩而坐
   // 坐在柳宗元身旁稍後的位置：望向遠方時，他就在視野右邊
-  const seat = { x: LEDGE.x + 0.8, z: LEDGE.z + 1.2 };
+  const seat = { x: LEDGE.x + 0.8, z: LEDGE.z + 1.55 };
   await Promise.all([
     moveTo(seat.x, seat.z, 2.2, { eye: 0.95 }),
     turnTo(Math.PI / 2 - 0.22, -0.04, 2.4),

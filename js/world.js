@@ -400,7 +400,7 @@ export function makeFootprints(points, heightAt, { color = '#3e3226', opacity = 
     const side = i % 2 ? 1 : -1;
     const f = new THREE.Mesh(g, m);
     const ox = Math.cos(ang) * 0.13 * side, oz = -Math.sin(ang) * 0.13 * side;
-    f.position.set(p.x + ox, heightAt(p.x + ox, p.z + oz) + 0.03, p.z + oz);
+    f.position.set(p.x + ox, Math.max(heightAt(p.x + ox, p.z + oz), heightAt(p.x, p.z)) + 0.12, p.z + oz);
     f.rotation.y = ang;
     grp.add(f);
   }

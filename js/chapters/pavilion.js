@@ -265,10 +265,10 @@ export async function chapter3() {
   const sp = { x: 5.5, z: -10.5 };
   servant.position.set(sp.x, world.heightAt(sp.x, sp.z), sp.z);
   servant.userData.setPose('sit');
-  servant.rotation.y = Math.PI * 0.9;
+  servant.rotation.y = Math.atan2(-sp.x, -sp.z); // 面向亭子（玩家走來的方向）
   world.scene.add(servant); E.persons.add(servant);
   const tree = makeTrees([{ type: 'broad', x: sp.x + 1.6, z: sp.z - 1.2, s: 1.3 }], world.heightAt); world.scene.add(tree);
-  world.blockers.push({ x: sp.x, z: sp.z, r: 0.6 });
+  world.blockers.push({ x: sp.x, z: sp.z, r: 0.7 }, { x: sp.x + Math.sin(Math.atan2(-sp.x, -sp.z)) * 0.6, z: sp.z + Math.cos(Math.atan2(-sp.x, -sp.z)) * 0.6, r: 0.6 });
   audio.tone(220, 0.4, { type: 'triangle', vol: 0.05, slideTo: 180 });
 
   await moveTo(seatPos.x * 0.6, seatPos.z * 0.6, 1, { eye: 1.6 });
@@ -278,6 +278,9 @@ export async function chapter3() {
   ui.showDpad(true);
   unfreeze();
   await clue(servant, '樹下的人', async () => {
+    // 走到離他約兩步的地方才說話
+    const dx = E.player.pos.x - sp.x, dz = E.player.pos.z - sp.z, dd = Math.hypot(dx, dz) || 1;
+    if (dd > 2.3) await moveTo(sp.x + dx / dd * 2.0, sp.z + dz / dd * 2.0, Math.min(2, (dd - 2) * 0.5));
     watch(servant, true);
     await lookAt(new THREE.Vector3(sp.x, world.heightAt(sp.x, sp.z) + 0.9, sp.z), 0.8);
     await wait(0.6);
