@@ -366,7 +366,9 @@ export async function chapter2() {
 
   // ------- 小動畫：柳宗元與友人 -------
   ui.objective('');
-  await turnTo(Math.PI * 0.02, -0.18, 1.2);
+  // 走到草地邊，看「當時的情景」
+  await moveTo(2.5, 8.5, 1.4);
+  await lookAt(new THREE.Vector3(-0.6, gladeHeight(-0.6, 2) + 0.4, 2), 1.2);
   const liu = makePerson({ robe: '#a7b3b0', beard: true, cap: 'scholar' });
   const f1 = makePerson({ robe: '#8c7a62', cap: 'scholar', beard: false });
   const f2 = makePerson({ robe: '#6f7f8a', cap: 'band', beard: true });

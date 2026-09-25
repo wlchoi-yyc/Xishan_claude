@@ -148,7 +148,7 @@ export async function chapter4() {
     await ui.say('船家', '他一上船便站在船頭，一直望着對面那座山，連話也不多說。以前他出來，可從來不是這樣急。');
     await ui.say('船家', '上來吧，我送你過去。');
     ui.hideDialog();
-  }, { range: 12 });
+  }, { range: 4.5 });
 
   // 上船
   freeze();
