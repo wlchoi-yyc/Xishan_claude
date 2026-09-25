@@ -1,0 +1,13 @@
+{
+  "name": "xishan-find-liu-zongyuan",
+  "version": "1.0.0",
+  "private": true,
+  "description": "始得西山宴遊記：尋找柳宗元——第一人稱立體網頁遊戲",
+  "scripts": {
+    "start": "http-server -p 8000 -c-1 .",
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

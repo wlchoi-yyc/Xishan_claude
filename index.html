@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>始得西山宴遊記：尋找柳宗元</title>
+<meta name="description" content="以柳宗元《始得西山宴遊記》為文本依據的第一人稱立體解謎遊戲。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<!-- 準星 -->
+<div id="crosshair"></div>
+<!-- 可互動物件的標記 -->
+<div id="markers"></div>
+<div id="tooltip"></div>
+
+<!-- 抬頭顯示 -->
+<div id="hud" class="hidden">
+  <div id="mood" class="hidden" title="柳宗元心境">
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <defs>
+        <radialGradient id="heartGlow" cx="50%" cy="45%" r="60%">
+          <stop offset="0%" stop-color="#fff" stop-opacity=".55"/>
+          <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <path id="heartPath" d="M32 56 C 12 42, 4 30, 8 19 C 12 8, 27 8, 32 19 C 37 8, 52 8, 56 19 C 60 30, 52 42, 32 56 Z"/>
+      <path d="M32 56 C 12 42, 4 30, 8 19 C 12 8, 27 8, 32 19 C 37 8, 52 8, 56 19 C 60 30, 52 42, 32 56 Z" fill="url(#heartGlow)"/>
+      <g id="heartBinds">
+        <path d="M9 24 Q32 34 55 24" />
+        <path d="M13 36 Q32 44 51 36" />
+      </g>
+    </svg>
+    <div id="moodText">
+      <div class="moodCaption">柳宗元心境</div>
+      <div id="moodLabel">拘束／惴慄</div>
+    </div>
+  </div>
+  <div id="objective" class="hidden"><span class="objTag">目標</span><span id="objText"></span></div>
+  <div id="chapterTag"></div>
+  <div id="hudButtons">
+    <button id="btnJournal" class="hidden" title="遊記日誌">日誌</button>
+    <button id="btnMap" class="hidden" title="地圖">地圖</button>
+    <button id="btnHint" title="提示">提示</button>
+    <button id="btnSound" title="聲音">聲音</button>
+  </div>
+  <div id="toolSlot" class="hidden"></div>
+</div>
+
+<!-- 觸控移動鍵 -->
+<div id="dpad" class="hidden">
+  <button data-dir="f">▲</button>
+  <button data-dir="l">◀</button>
+  <button data-dir="b">▼</button>
+  <button data-dir="r">▶</button>
+</div>
+<div id="controlsHelp" class="hidden">拖曳畫面：轉動視角　WASD／方向鍵：移動　點擊：互動或走過去</div>
+
+<!-- 對話 -->
+<div id="dialog" class="hidden">
+  <div id="dlgName"></div>
+  <div id="dlgText"></div>
+  <div id="dlgChoices"></div>
+  <div id="dlgNext">▼</div>
+</div>
+
+<!-- 原文字幕 -->
+<div id="caption" class="hidden"><div id="captionText"></div></div>
+<!-- 低語字幕（不帶對話框） -->
+<div id="whisper" class="hidden"></div>
+<!-- 章節卡 -->
+<div id="chapterCard" class="hidden"><div class="ccNum"></div><div class="ccName"></div><div class="ccSub"></div></div>
+<!-- 大型按鈕（如：坐下） -->
+<div id="bigAction" class="hidden"><button id="bigActionBtn"></button></div>
+<!-- 通知 -->
+<div id="toasts"></div>
+<!-- 模態視窗 -->
+<div id="modal" class="hidden"><div id="modalBox"></div></div>
+<!-- 淡入淡出 -->
+<div id="fade"></div>
+<div id="vignette"></div>
+
+<!-- 標題畫面 -->
+<div id="title">
+  <div class="titleInner">
+    <div class="titleSeal">柳</div>
+    <h1><span class="t1">始得西山宴遊記</span><span class="t2">尋找柳宗元</span></h1>
+    <p class="titleLead">元和四年，秋。永州。<br>柳宗元今天又出遊了——但到了這個時辰，仍然未歸。<br>循着他留下的痕跡，找出他的去向。</p>
+    <button id="btnStart">開始尋找</button>
+    <div class="titleNote">建議戴上耳機　・　電腦、平板皆可遊玩<br>拖曳畫面轉動視角，點擊物件互動</div>
+    <details id="teacherMenu">
+      <summary>教師：章節選擇</summary>
+      <div id="chapterList"></div>
+    </details>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
