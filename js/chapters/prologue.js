@@ -96,7 +96,7 @@ function buildRoom() {
   scene.add(shelf);
 
   // 僕人（老僕）
-  const servant = makePerson({ robe: '#7b6a55', inner: '#d8cfbd', cap: 'band', hair: '#6d6a66', beard: true, skin: '#d6ab86' });
+  const servant = makePerson({ preset: 'oldServant', name: '老僕' });
   servant.position.set(2.6, 0, 1.9); servant.rotation.y = -2.4;
   scene.add(servant);
   E.persons.add(servant);

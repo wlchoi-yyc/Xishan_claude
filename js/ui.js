@@ -1,5 +1,6 @@
 // 介面：對話、字幕、心境、日誌、地圖、各種解謎介面
 import { audio } from './audio.js';
+import { E } from './engine.js';
 import { FULL_TEXT, MOODS, JOURNAL_CATS } from './data.js';
 
 const $ = (id) => document.getElementById(id);
@@ -41,7 +42,9 @@ export async function say(name, text, { auto = 0 } = {}) {
   dlgNext.style.visibility = 'hidden';
   advance = () => { if (typing) typing.finish(); };
   audio.blip && audio.blip();
+  E.speaker = name; // 讓說話的人物動嘴
   await typeText(text);
+  E.speaker = '';
   if (auto) { advance = null; await sleep(auto * 1000); return; }
   dlgNext.style.visibility = 'visible';
   await new Promise(res => { advance = () => { advance = null; audio.click(); res(); }; });

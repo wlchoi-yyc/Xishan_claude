@@ -66,7 +66,7 @@ function buildRiver() {
 
   // 船與船家
   const boat = makeBoat(); boat.position.set(73, 0.1, 0); scene.add(boat);
-  const boatman = makePerson({ robe: '#5d584c', inner: '#cfc6b0', cap: 'hat', skin: '#c89a74' });
+  const boatman = makePerson({ preset: 'boatman', name: '船家' });
   boatman.position.set(2.2, 0.3, 0); boatman.rotation.y = -Math.PI / 2; boat.add(boatman);
   E.persons.add(boatman);
   const oar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 3.4, 5), lam('#8a6a48')); oar.position.set(0.25, -0.9, 0.2); oar.rotation.x = 0.6; boatman.userData.armR.add(oar);

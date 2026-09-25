@@ -369,9 +369,9 @@ export async function chapter2() {
   // 走到草地邊，看「當時的情景」
   await moveTo(2.5, 8.5, 1.4);
   await lookAt(new THREE.Vector3(-0.6, gladeHeight(-0.6, 2) + 0.4, 2), 1.2);
-  const liu = makePerson({ robe: '#a7b3b0', beard: true, cap: 'scholar' });
-  const f1 = makePerson({ robe: '#8c7a62', cap: 'scholar', beard: false });
-  const f2 = makePerson({ robe: '#6f7f8a', cap: 'band', beard: true });
+  const liu = makePerson({ preset: 'liu' });
+  const f1 = makePerson({ preset: 'friend1' });
+  const f2 = makePerson({ preset: 'friend2' });
   const group = [liu, f1, f2];
   // 半透明，表示是「過去」的情景
   group.forEach(p => { p.traverse(o => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.0; } }); scene.add(p); E.persons.add(p); });

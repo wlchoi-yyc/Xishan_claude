@@ -218,7 +218,7 @@ export async function chapter3() {
   // ------ 第四關（上）：亭下的僕人 ------
   audio.music('yongzhou', 3);
   audio.ambience({ wind: 0.35, birds: 0.5 });
-  const servant = makePerson({ robe: '#8a7355', inner: '#dcd2bd', cap: 'band', skin: '#d8a882' });
+  const servant = makePerson({ preset: 'servant', name: '僕人' });
   const sp = { x: 5.5, z: -10.5 };
   servant.position.set(sp.x, world.heightAt(sp.x, sp.z), sp.z);
   servant.userData.setPose('sit');

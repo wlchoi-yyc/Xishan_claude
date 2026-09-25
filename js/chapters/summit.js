@@ -356,7 +356,7 @@ export async function chapter9() {
   await golden;
 
   // 柳宗元（背對玩家，坐在崖邊）
-  const liu = makePerson({ robe: '#a7b3b0', inner: '#ece5d4', beard: true, cap: 'scholar', skin: '#dfb792' });
+  const liu = makePerson({ preset: 'liu', name: '柳宗元' });
   liu.userData.setPose('sit');
   liu.position.set(LEDGE.x, LEDGE.y, LEDGE.z);
   liu.rotation.y = -Math.PI / 2; // 面向西（夕陽）
@@ -591,7 +591,7 @@ async function epilogue(w, liu) {
 
   // 鏡頭慢慢離開，轉向西山：你和柳宗元並立山頂
   await ui.fadeHUD(true, 1.5);
-  const you = makePerson({ robe: '#3d5f58', inner: '#e0d8c6', cap: 'band', skin: '#e2b999', scale: 0.95 });
+  const you = makePerson({ preset: 'student' });
   you.position.set(E.player.pos.x, LEDGE.y, E.player.pos.z);
   you.rotation.y = -Math.PI / 2;
   scene.add(you);
