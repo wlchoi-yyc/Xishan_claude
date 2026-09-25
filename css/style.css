@@ -323,7 +323,6 @@ button { font-family: var(--serif); cursor: pointer; }
 }
 #title.out { opacity: 0; pointer-events: none; }
 .titleInner { text-align: center; padding: 30px 20px; max-width: 720px; position: relative; margin: auto; }
-.titleSeal { display: inline-flex; width: 58px; height: 58px; align-items: center; justify-content: center; background: var(--seal); color: #fff; font-size: 34px; border-radius: 6px; margin-bottom: 14px; box-shadow: 0 4px 20px rgba(179,55,43,.4); }
 #title h1 { margin: 0 0 18px; font-weight: 400; }
 #title .t1 { display: block; font-size: clamp(34px, 6vw, 58px); letter-spacing: .3em; margin-right: -.3em; }
 #title .t2 { display: block; font-size: clamp(20px, 3vw, 28px); letter-spacing: .6em; color: var(--gold); margin-top: 8px; margin-right: -.6em; }
