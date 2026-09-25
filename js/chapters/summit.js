@@ -9,9 +9,11 @@ import {
   fbm, noise2, rng, mixHex, smoothstep, lam,
 } from '../world.js';
 import { RECON } from '../data.js';
+import { makeClouds, makeMist, makeGrassField, makePinnacle, terrace } from '../scenery.js';
+import { xishanColor, autumnGround } from './pavilion.js';
 
 // ---------------- 地形 ----------------
-const LEDGE = { x: -19, z: 4.5, y: -5.2 };   // 柳宗元坐的崖邊（山頂之下的一塊突石）
+const LEDGE = { x: -15.5, z: 3.8, y: -6.2 };   // 柳宗元坐的崖邊（山頂之下的一塊突石）
 const RIM = { x: -11, z: 2 };
 const TOP_R = 12;
 const DOME = 0.03;
@@ -48,12 +50,14 @@ function summitH(x, z) {
   if (r > TOP_R) {
     const rim = -DOME * TOP_R * TOP_R;
     h = rim - 262 * (1 - Math.exp(-(r - TOP_R) / 85)) + fbm(x * 0.03, z * 0.03, 3, 2) * 6 * Math.min(1, (r - TOP_R) / 30);
+    // 山腰一級級的斷崖
+    h = terrace(h, 17, 0.6 * smoothstep(TOP_R + 10, TOP_R + 30, r) * (1 - smoothstep(280, 370, r)));
   }
   // 崖邊小平台與下去的小徑
   const dl = Math.hypot(x - LEDGE.x, z - LEDGE.z);
   const ds = distSeg(x, z, RIM, LEDGE);
-  if (ds < 6) { const t = Math.min(1, Math.hypot(x - RIM.x, z - RIM.z) / Math.hypot(LEDGE.x - RIM.x, LEDGE.z - RIM.z)); h = Math.max(h, lerp(summitRim(), LEDGE.y, t) - (ds > 1.4 ? (ds - 1.4) * 8 : 0)); }
-  if (dl < 8) h = Math.max(h, LEDGE.y - (dl > 3 ? (dl - 3) * 6 : 0) + fbm(x * 0.3, z * 0.3, 2, 5) * 0.15);
+  if (ds < 6) { const t = Math.min(1, Math.hypot(x - RIM.x, z - RIM.z) / Math.hypot(LEDGE.x - RIM.x, LEDGE.z - RIM.z)); h = Math.max(h, lerp(summitRim(), LEDGE.y, t) - (ds > 1.4 ? (ds - 1.4) * 2.2 : 0)); }
+  if (dl < 8) h = Math.max(h, LEDGE.y - (dl > 3 ? (dl - 3) * 2.2 : 0) + fbm(x * 0.3, z * 0.3, 2, 5) * 0.15);
   // 遠方的「培塿」與穴
   if (r > 300) {
     for (const b of lowBumps) { const dx = x - b.x, dz = z - b.z, d2 = dx * dx + dz * dz; if (d2 < 9 * b.s * b.s) h += b.h * Math.exp(-d2 / (2 * b.s * b.s)); }
@@ -72,9 +76,9 @@ function summitColor(h, slope, x, z) {
     if (slope > 0.4) c = mixHex(c, '#9a927f', 0.7);
     return c;
   }
-  if (r < 400) { let c = mixHex('#3f5d3a', '#4d6a3e', n); if (slope > 0.4) c = mixHex(c, '#bfb49a', smoothstep(0.4, 0.7, slope)); return c; }
+  if (r < 400) return xishanColor(h, slope, x, z, n);
   // 青山
-  let c = mixHex('#5d7d58', '#6f8c5c', n);
+  let c = autumnGround(x, z, mixHex('#5d7d58', '#6f8c5c', n));
   if (h > -230) c = mixHex(c, '#4d7263', smoothstep(-230, -180, h));
   if (h < -260) c = mixHex(c, '#8d9270', 0.4);
   return c;
@@ -97,30 +101,43 @@ function buildSummit() {
   const riverMats = [];
   for (const rv of RIVERS) {
     const pts = pathPoints(rv, 25);
-    const m = makeRibbon(pts, 38, () => -272, { color: '#e3eef0', lift: 0, opacity: 1 });
-    m.material = new THREE.MeshPhongMaterial({ color: '#dfeaec', emissive: '#6f8a90', emissiveIntensity: 0.3, shininess: 120, side: THREE.DoubleSide });
+    const m = makeRibbon(pts, 24, () => -272, { color: '#e3eef0', lift: 0, opacity: 1 });
+    m.material = new THREE.MeshPhongMaterial({ color: '#cfe0e6', emissive: '#6f8a90', emissiveIntensity: 0.3, shininess: 140, specular: 0xffffff, side: THREE.DoubleSide });
     riverMats.push(m.material);
     scene.add(m);
   }
-  // 山頂的樹與石
-  const trees = [{ type: 'pine', x: 7, z: -9, s: 1.1, rot: 1 }, { type: 'pine', x: 4, z: 10, s: 0.9, rot: 2 }];
+  // 山頂的古松與石
+  const trees = [
+    { type: 'song', x: -9.5, z: -6, s: 1.25, rot: 2.6, tilt: 0.12 },
+    { type: 'song', x: -6.5, z: 9, s: 1.0, rot: 0.9, tilt: -0.1 },
+    { type: 'pine', x: 7, z: -9, s: 1.1, rot: 1 },
+    { type: 'song', x: 5, z: 10, s: 0.95, rot: 4 },
+  ];
   scene.add(makeTrees(trees, summitH));
-  // 遠處山坡的樹（稀疏、大）
-  const farTrees = scatter(700, 29, (x, z, r) => { const d = Math.hypot(x, z); if (d < 45 || d > 380) return false; return { type: 'pine', s: 3 + r() * 2 }; }, { x0: -380, x1: 380, z0: -380, z1: 380 });
+  // 山坡上的松（稀疏、大）
+  const farTrees = scatter(900, 29, (x, z, r) => { const d = Math.hypot(x, z); if (d < 30 || d > 380) return false; if (distSeg(x, z, RIM, LEDGE) < 6) return false; return { type: r() < 0.45 ? 'song' : 'pine', s: 2.4 + r() * 2 }; }, { x0: -380, x1: 380, z0: -380, z1: 380 });
   scene.add(makeTrees(farTrees, summitH));
   const rr = rng(71);
   const rockPos = [[8, 5.5], [6.5, -6.5], [9.5, -1.5]];
   rockPos.forEach(([x, z], i) => { const s = 1 + rr() * 1.4; const m = makeRock(s, '#948d7c', 700 + i); m.position.set(x, summitH(x, z) + s * 0.3, z); m.scale.y = 0.8 + rr() * 0.8; scene.add(m); });
-  for (let i = 0; i < 12; i++) { const a = rr() * 6.28, d = 4 + rr() * 7; const x = Math.cos(a) * d, z = Math.sin(a) * d; if (x < 2) continue; const g = makeGrassPatch(8, 0.8, { seed: 800 + i, color: '#9aa35c', height: 0.4 }); g.position.set(x, summitH(x, z), z); scene.add(g); }
-  // 雲
-  const cloudM = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.85 });
-  const clouds = new THREE.Group();
-  for (let i = 0; i < 40; i++) {
-    const c = new THREE.Mesh(new THREE.IcosahedronGeometry(60 + rr() * 80, 1), cloudM);
-    const a = rr() * 6.28, d = 1500 + rr() * 2200;
-    c.position.set(Math.cos(a) * d, -40 + rr() * 260, Math.sin(a) * d); c.scale.y = 0.25; clouds.add(c);
+  scene.add(makeGrassField({ count: 420, area: { x0: -12, x1: 12, z0: -12, z1: 12 }, heightAt: summitH, accept: (x, z) => Math.hypot(x, z) < 11.5 && distSeg(x, z, RIM, LEDGE) > 1.2, seed: 31, scale: [0.35, 0.7] }));
+  // 山腰的石峰：從山頂往下望，一根根石筍從雲霧中立起
+  for (let i = 0; i < 16; i++) {
+    const a = rr() * Math.PI * 2;
+    if (Math.abs(Math.atan2(Math.sin(a - 2.9), Math.cos(a - 2.9))) < 0.35) continue; // 避開崖邊平台
+    const d = 70 + rr() * 170, x = Math.cos(a) * d, z = Math.sin(a) * d;
+    const base = summitH(x, z);
+    const hgt = Math.min(120, -base - 25) * (0.6 + rr() * 0.4);
+    if (hgt < 25) continue;
+    const pn = makePinnacle(hgt, 900 + i, { width: 0.18 + rr() * 0.1 });
+    pn.position.set(x, base - 5, z); scene.add(pn);
   }
-  scene.add(clouds);
+  // 雲：高空的雲，和與山頂齊平、甚至在腳下的雲
+  const clouds = makeClouds({ count: 30, rMin: 1400, rMax: 3200, yMin: 250, yMax: 600, size: [500, 1000], seed: 41 });
+  const lowClouds = makeClouds({ count: 26, rMin: 700, rMax: 2600, yMin: -170, yMax: -40, size: [380, 800], seed: 42, opacity: 0.8 });
+  // 雲海：谷中的霧
+  const mist = makeMist({ count: 70, rMin: 200, rMax: 2400, y: -238, yJitter: 14, size: [260, 520], opacity: 0.32, seed: 43 });
+  scene.add(clouds, lowClouds, mist);
   // 星與月（夜晚才出現）
   const starGeo = new THREE.BufferGeometry();
   const sp = [];
@@ -144,8 +161,8 @@ function buildSummit() {
     scene, heightAt: summitH, clamp,
     blockers: rockPos.map(([x, z]) => ({ x, z, r: 1.1 })).concat(trees.map(t => ({ x: t.x, z: t.z, r: 0.5 }))),
     walkables: [near],
-    sky: B.sky, sunLight: B.sun, hemi: B.hemi, riverMats, stars, moon, clouds,
-    update: (dt, t) => { clouds.rotation.y += dt * 0.002; },
+    sky: B.sky, sunLight: B.sun, hemi: B.hemi, riverMats, stars, moon, clouds, cloudMats: [clouds.userData.material, lowClouds.userData.material],
+    animated: [clouds, lowClouds, mist],
   };
 }
 
@@ -156,6 +173,7 @@ function skyState(w) {
     top: u.top.value.clone(), horizon: u.horizon.value.clone(), bottom: u.bottom.value.clone(), sunColor: u.sunColor.value.clone(), sunDir: u.sunDir.value.clone(),
     fog: w.scene.fog.color.clone(), near: w.scene.fog.near, far: w.scene.fog.far,
     hemiSky: w.hemi.color.clone(), hemiGround: w.hemi.groundColor.clone(), hemiI: w.hemi.intensity, sunI: w.sunLight.intensity, sunL: w.sunLight.color.clone(),
+    cloud: w.cloudMats[0].color.clone(),
     dark: u.dark.value, stars: w.stars.material.opacity, moon: w.moon.material.opacity, river: w.riverMats[0].emissiveIntensity,
   };
 }
@@ -189,6 +207,7 @@ async function skyTo(w, target, dur) {
     if (target.stars !== undefined) w.stars.material.opacity = lerp(a.stars, target.stars, k);
     if (target.moon !== undefined) w.moon.material.opacity = lerp(a.moon, target.moon, k);
     if (target.river !== undefined) w.riverMats.forEach(m => m.emissiveIntensity = lerp(a.river, target.river, k));
+    if (target.cloud) { const cc = new THREE.Color(target.cloud); w.cloudMats.forEach(m => m.color.lerpColors(a.cloud, cc, k)); }
     if (target.sunStrength !== undefined) u.sunStrength.value = lerp(u.sunStrength.value, target.sunStrength, k);
   }, t => t);
 }
@@ -351,7 +370,7 @@ export async function chapter9() {
   audio.music(null, 4);
   audio.ambience({ wind: 0.5, water: 0, birds: 0.45 }, 3);
   // 時間流逝：黃昏
-  const golden = skyTo(w, { top: '#5a7fb2', horizon: '#f0d2a2', sunColor: '#ffd08a', sunDir: [-1, 0.16, 0.1], fog: '#e8d4b0', hemiSky: '#f3dfbf', hemiGround: '#5a4a3a', hemiI: 1.1, sunI: 1.5, sunL: '#ffcf96' }, 6);
+  const golden = skyTo(w, { top: '#5a7fb2', horizon: '#f0d2a2', sunColor: '#ffd08a', sunDir: [-1, 0.16, 0.1], fog: '#e8d4b0', hemiSky: '#f3dfbf', hemiGround: '#5a4a3a', hemiI: 1.1, sunI: 1.5, sunL: '#ffcf96', cloud: '#ffe4bd' }, 6);
   await ui.chapterCard('第九關', '找到柳宗元', '山頂・黃昏');
   await golden;
 
@@ -449,7 +468,7 @@ export async function chapter9() {
   await c1;
 
   // 第二階段：天地包圍自己（黃昏）
-  const dusk = skyTo(w, { top: '#34426e', horizon: '#ef8b5c', sunColor: '#ff9a5a', sunDir: [-1, 0.04, 0.12], fog: '#d99470', hemiSky: '#f0b38a', hemiGround: '#4a3638', hemiI: 0.95, sunI: 1.2, sunL: '#ff9c6a', river: 0.9 }, 12);
+  const dusk = skyTo(w, { top: '#34426e', horizon: '#ef8b5c', sunColor: '#ff9a5a', sunDir: [-1, 0.04, 0.12], fog: '#d99470', hemiSky: '#f0b38a', hemiGround: '#4a3638', hemiI: 0.95, sunI: 1.2, sunL: '#ff9c6a', river: 0.9, cloud: '#f5a07a' }, 12);
   audio.music('dusk', 6);
   await wait(3);
   ui.caption('縈青繚白', { hold: 4 });
@@ -502,7 +521,7 @@ export async function chapter9() {
   // 第四階段：蒼然暮色，自遠而至
   E.onUpdate.splice(E.onUpdate.indexOf(drift), 1);
   audio.ambience({ wind: 0.4, birds: 0, crickets: 0.8 }, 6);
-  const dark = skyTo(w, { top: '#0b1022', horizon: '#253047', sunColor: '#40304a', sunDir: [-1, -0.1, 0.1], fog: '#1b2233', near: 0, far: 26, farEase: true, hemiSky: '#3a4666', hemiGround: '#111018', hemiI: 0.45, sunI: 0.05, sunL: '#553a50', dark: 0.35, river: 0.1 }, 16);
+  const dark = skyTo(w, { top: '#0b1022', horizon: '#253047', sunColor: '#40304a', sunDir: [-1, -0.1, 0.1], fog: '#1b2233', near: 0, far: 26, farEase: true, hemiSky: '#3a4666', hemiGround: '#111018', hemiI: 0.45, sunI: 0.05, sunL: '#553a50', dark: 0.35, river: 0.1, cloud: '#262c42' }, 16);
   await wait(4);
   const c3 = ui.caption('蒼然暮色，自遠而至，至無所見。', { gloss: '蒼茫的暮色由遠處漸漸逼近，直到甚麼也看不見。', hold: 8 });
   await dark;
@@ -544,7 +563,7 @@ async function epilogue(w, liu) {
   scene.add(lantern);
   tween(4, k => { glow.intensity = k * 6; });
   // 月出：稍微看得見
-  const night = skyTo(w, { top: '#101a36', horizon: '#34466a', fog: '#26324c', near: 20, far: 1400, hemiSky: '#8fa4d0', hemiGround: '#1c1c28', hemiI: 0.75, sunI: 0.25, sunL: '#9fb3e0', sunDir: [0.5, 0.35, -0.6], dark: 0.15, stars: 1, moon: 1, river: 0.35 }, 5);
+  const night = skyTo(w, { top: '#101a36', horizon: '#34466a', fog: '#26324c', near: 20, far: 1400, hemiSky: '#8fa4d0', hemiGround: '#1c1c28', hemiI: 0.75, sunI: 0.25, sunL: '#9fb3e0', sunDir: [0.5, 0.35, -0.6], dark: 0.15, stars: 1, moon: 1, river: 0.35, cloud: '#3c4866' }, 5);
   await ui.chapterCard('終章', '精神之境', '');
   await night;
 

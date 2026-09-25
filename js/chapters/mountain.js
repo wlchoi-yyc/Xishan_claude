@@ -6,6 +6,7 @@ import {
   baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makeRibbon, makeFootprints, pathPoints, makeFire, makeSmoke, makeStaff,
   mergeColored, mat, vcMat, fbm, noise2, rng, mixHex, smoothstep, lam,
 } from '../world.js';
+import { makeClouds, makeMist, makeGrassField, makePinnacle } from '../scenery.js';
 
 // ================= 第五關 =================
 function footH(x, z) {
@@ -72,9 +73,13 @@ function buildFoot() {
   const trees = scatter(260, 71, (x, z, r) => {
     if (Math.abs(z) < 12 && x < 8 && x > -60) return false;
     if (Math.abs(z) < 7) return false;
-    return { type: r() < 0.6 ? 'pine' : 'broad', s: 1 + r() * 0.9 };
+    const t = r();
+    return { type: t < 0.4 ? 'pine' : t < 0.6 ? 'song' : t < 0.8 ? 'broad' : 'maple', s: 1 + r() * 0.9 };
   }, { x0: -120, x1: 120, z0: -120, z1: 120 });
   scene.add(makeTrees(trees, footH));
+  scene.add(makeGrassField({ count: 700, area: { x0: -45, x1: 14, z0: -8, z1: 8 }, heightAt: footH, accept: (x, z) => (x > -5 || x < -19) && Math.hypot(x - 3, z - 2) > 2.5, seed: 17, scale: [0.4, 0.8] }));
+  const clouds = makeClouds({ count: 16, rMin: 250, rMax: 700, yMin: 130, yMax: 220, size: [150, 300], seed: 18 });
+  scene.add(clouds);
 
   // 榛莽（第一排）與茅茷（第二排）
   const bushes = [];
@@ -115,7 +120,7 @@ function buildFoot() {
   const bushWall = { type: 'box', minX: -10, maxX: -6.5, minZ: -7, maxZ: 7, r: 0.4 };
   const grassWall = { type: 'box', minX: -15.5, maxX: -11.5, minZ: -7, maxZ: 7, r: 0.4 };
   return {
-    scene, heightAt: footH, bushes, thatch, path, bushWall, grassWall,
+    scene, heightAt: footH, bushes, thatch, path, bushWall, grassWall, animated: [clouds],
     clamp: v => { v.z = Math.max(-5.8, Math.min(5.8, v.z)); v.x = Math.max(-44, Math.min(12, v.x)); },
     blockers: [bushWall, grassWall, { x: 3, z: 2, r: 1.8 }],
     walkables: [terrain],
@@ -414,9 +419,15 @@ function buildSlope() {
   const trees = scatter(900, 17, (x, z, r) => {
     if (Math.abs(z) < 8 && x < 6 && x > -26) return false;
     if (x > 440 && x < 580) return false;
-    return { type: r() < 0.5 ? 'pine' : r() < 0.8 ? 'broad' : 'maple', s: 1.2 + r() * (x > 60 ? 3 : 1) };
+    const t = r();
+    return { type: x < 0 ? (t < 0.6 ? 'song' : 'pine') : t < 0.4 ? 'pine' : t < 0.7 ? 'broad' : t < 0.88 ? 'maple' : 'ginkgo', s: 1.2 + r() * (x > 60 ? 3 : 1), tilt: x < 0 ? 0.15 : 0 };
   }, { x0: -80, x1: 1400, z0: -800, z1: 800 });
+  // 崖壁上的松：沿着攀爬路線兩旁
+  for (let i = 0; i < 14; i++) { const y = 8 + i * 7, side = i % 2 ? 1 : -1; trees.push({ type: 'song', x: cliffX(y) + 0.6, z: side * (4 + (i * 1.3) % 3), s: 0.7 + (i % 3) * 0.2, rot: side > 0 ? 0.3 : 3.4, tilt: 0.25 }); }
   scene.add(makeTrees(trees, slopeH));
+  const clouds = makeClouds({ count: 24, rMin: 500, rMax: 1500, yMin: 60, yMax: 260, size: [260, 520], seed: 19 });
+  const mist = makeMist({ count: 30, center: [300, 0], rMax: 700, y: -8, yJitter: 6, size: [120, 260], opacity: 0.3, seed: 20 });
+  scene.add(clouds, mist);
   // 平台
   LEDGES.forEach((L, i) => {
     if (i === 0) return;
@@ -427,7 +438,7 @@ function buildSlope() {
     for (let i = LEDGES.length - 1; i >= 1; i--) { const L = LEDGES[i]; if (Math.hypot(x - L.x + 0.5, z - L.z) < 1.8) return L.y; }
     return slopeH(x, z);
   };
-  return { scene, heightAt, clamp: () => {}, blockers: [], walkables: [] };
+  return { scene, heightAt, clamp: () => {}, blockers: [], walkables: [], animated: [clouds, mist] };
 }
 
 export async function chapter6() {

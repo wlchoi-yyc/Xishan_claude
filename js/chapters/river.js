@@ -2,7 +2,8 @@
 import { E, THREE, ui, audio, enter, clue, watch } from './common.js';
 import { addInteractable, removeInteractable, freeze, unfreeze, wait, lookAt, moveTo, turnTo, tween, setControls, lerp, angleDiff } from '../engine.js';
 import { baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makeBoat, makePerson, makeRibbon, makeFootprints, pathPoints, fbm, noise2, rng, mixHex, smoothstep, lam } from '../world.js';
-import { xishanShape } from './pavilion.js';
+import { xishanShape, xishanColor, addXishanPinnacles, autumnGround } from './pavilion.js';
+import { makeClouds, makeMist, makeGrassField } from '../scenery.js';
 
 const RIVER_HALF = 80;
 const CREEK = [{ x: -76, z: 16 }, { x: -110, z: 14 }, { x: -140, z: 22 }, { x: -175, z: 18 }, { x: -210, z: 28 }, { x: -250, z: 24 }, { x: -300, z: 36 }, { x: -380, z: 30 }];
@@ -38,9 +39,9 @@ function terrainH(x, z) {
 function colorAt(h, slope, x, z) {
   const n = noise2(x * 0.05, z * 0.05, 2) * 0.5 + 0.5;
   if (h < -1) return mixHex('#6f6a54', '#5e5a48', n);
-  let c = mixHex('#6d8747', '#8b9555', n);
+  let c = autumnGround(x, z, mixHex('#6d8747', '#8b9555', n));
   if (Math.abs(x) < RIVER_HALF + 10) c = mixHex('#a39a74', c, smoothstep(RIVER_HALF + 2, RIVER_HALF + 10, Math.abs(x)));
-  if (Math.hypot(x - WEST_HILL.x, z - WEST_HILL.z) < 300) { c = mixHex('#3f5d3a', '#4f6b3d', n); if (slope > 0.3) c = mixHex(c, '#c9bfa6', smoothstep(0.3, 0.55, slope)); }
+  if (Math.hypot(x - WEST_HILL.x, z - WEST_HILL.z) < 320) c = xishanColor(h, slope, x, z, n);
   return c;
 }
 
@@ -93,15 +94,26 @@ function buildRiver() {
     if (Math.hypot(x + 92, z - 4) < 16 || Math.hypot(x - 86, z) < 14) return false;
     const near = Math.hypot(x + 150, z - 10) < 90 || Math.abs(x - 110) < 60;
     if (!near && r() < 0.6) return false;
-    return { type: r() < 0.4 ? 'pine' : r() < 0.7 ? 'broad' : r() < 0.85 ? 'bamboo' : 'maple', s: 1 + r() * 1.2 };
-  }, { x0: -700, x1: 700, z0: -600, z1: 600 });
-  scene.add(makeTrees(trees, terrainH));
+    if (Math.hypot(x - WEST_HILL.x, z - WEST_HILL.z) < 280) return r() < 0.5 ? { type: r() < 0.6 ? 'song' : 'pine', s: 2.5 + r() * 2 } : false;
+    const t = r();
+    return { type: t < 0.3 ? 'pine' : t < 0.55 ? 'broad' : t < 0.72 ? 'bamboo' : t < 0.88 ? 'maple' : 'ginkgo', s: 1 + r() * 1.2 };
+  }, { x0: -900, x1: 700, z0: -600, z1: 600 });
+  // 岸邊蘆葦
   const rr = rng(5);
-  for (let i = 0; i < 60; i++) {
-    const side = rr() < 0.5 ? -1 : 1, x = side * (RIVER_HALF + 2 + rr() * 6), z = (rr() - .5) * 300;
-    if (Math.abs(z) < 8) continue;
-    const g = makeGrassPatch(14, 1.2, { seed: i + 300, color: '#a8a868', height: 1.4 }); g.position.set(x, terrainH(x, z), z); scene.add(g);
+  for (let i = 0; i < 140; i++) {
+    const side = rr() < 0.5 ? -1 : 1, x = side * (RIVER_HALF - 1 + rr() * 7), z = (rr() - .5) * 400;
+    if (Math.abs(z) < 7) continue;
+    trees.push({ type: 'reed', x, z, s: 0.8 + rr() * 0.6, rot: rr() * 6 });
   }
+  // 染溪邊的蘆葦
+  pathPoints(CREEK, 6).forEach((p, i) => { if (i % 2) return; const side = i % 4 ? 3.5 : -3.5; trees.push({ type: 'reed', x: p.x + rr() * 2, z: p.z + side, s: 0.7 + rr() * 0.4 }); });
+  scene.add(makeTrees(trees, terrainH));
+  scene.add(makeGrassField({ count: 1600, area: { x0: -240, x1: 140, z0: -60, z1: 60 }, heightAt: terrainH, accept: (x, z) => Math.abs(x) > RIVER_HALF + 6 && !(x < -70 && distToPolyline(x, z, CREEK) < 3), seed: 21 }));
+  addXishanPinnacles(scene, WEST_HILL.x, WEST_HILL.z, terrainH, 7, 10);
+  const clouds = makeClouds({ count: 30, rMin: 600, rMax: 1600, yMin: 260, yMax: 460, seed: 8 });
+  const mist = makeMist({ count: 30, center: [0, 0], rMax: 600, y: 2, yJitter: 3, size: [60, 140], opacity: 0.28, seed: 9 });
+  const hillMist = makeMist({ count: 20, center: [WEST_HILL.x + 150, WEST_HILL.z], rMax: 300, y: 40, yJitter: 20, size: [120, 240], opacity: 0.4, seed: 10 });
+  scene.add(clouds, mist, hillMist);
 
   const S = { boating: false };
   const heightAt = (x, z) => S.boating ? Math.max(terrainH(x, z), 0) + 0.45 : (Math.abs(x) < RIVER_HALF + 8 && Math.abs(z) < 2.2 && Math.abs(x) > RIVER_HALF - 12 ? 1.23 : Math.max(terrainH(x, z), 0.2));
@@ -117,6 +129,7 @@ function buildRiver() {
     },
     blockers: trees.filter(t => t.s > 1).map(t => ({ x: t.x, z: t.z, r: 0.4 })),
     walkables: [terrain, deck, deck2],
+    animated: [clouds, mist, hillMist],
     update: (dt, t) => {
       const a = wpos.array;
       for (let i = 0; i < a.length; i += 3) a[i + 2] = wbase[i + 2] + Math.sin(wbase[i] * 0.2 + t * 1.2) * 0.12 + Math.cos(wbase[i + 1] * 0.05 + t) * 0.1;

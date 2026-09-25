@@ -487,6 +487,7 @@ function frame(now) {
     camera.updateProjectionMatrix();
   }
 
+  if (E.world && E.world.animated) for (const o of E.world.animated) o.userData.animate(E.time);
   if (E.world && E.world.update) E.world.update(dt, E.time);
   for (const fn of E.onUpdate) fn(dt, E.time);
   updatePersons(dt);

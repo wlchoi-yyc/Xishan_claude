@@ -175,43 +175,83 @@ export function makeRibbon(points, width, heightFn, { color = '#8fb8c4', opacity
 
 // ---------------- 樹 ----------------
 const treeGeoCache = {};
+// 帶隨機凹凸的葉團
+function blob(r, seed, detail = 1, squash = 1) {
+  const g = new THREE.IcosahedronGeometry(r, detail);
+  const rr = rng(seed), pos = g.attributes.position, seen = new Map();
+  for (let i = 0; i < pos.count; i++) {
+    const key = `${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
+    if (!seen.has(key)) seen.set(key, 0.82 + rr() * 0.36);
+    const k = seen.get(key);
+    pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k * squash, pos.getZ(i) * k);
+  }
+  return g;
+}
+// 彎曲的樹幹：一串圓柱
+function trunk(parts, pts, r0, r1, color) {
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = new THREE.Vector3(...pts[i]), b = new THREE.Vector3(...pts[i + 1]);
+    const len = a.distanceTo(b), k0 = i / (pts.length - 1), k1 = (i + 1) / (pts.length - 1);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+    m.compose(a.clone().add(b).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1));
+    parts.push({ geo: new THREE.CylinderGeometry(r0 + (r1 - r0) * k1, r0 + (r1 - r0) * k0, len * 1.04, 6), color, matrix: m });
+  }
+}
 function treeGeometry(type) {
   if (treeGeoCache[type]) return treeGeoCache[type];
-  let g;
+  const parts = [];
   if (type === 'pine') {
-    g = mergeColored([
-      { geo: new THREE.CylinderGeometry(0.12, 0.2, 2.2, 5), color: '#5a4332', matrix: mat(0, 1.1, 0) },
-      { geo: new THREE.ConeGeometry(1.5, 2.6, 7), color: '#2f5a3e', matrix: mat(0, 2.6, 0) },
-      { geo: new THREE.ConeGeometry(1.15, 2.2, 7), color: '#356546', matrix: mat(0, 3.7, 0) },
-      { geo: new THREE.ConeGeometry(0.75, 1.8, 7), color: '#3b6f4c', matrix: mat(0, 4.7, 0) },
-    ]);
+    // 杉松：層層下垂的枝葉
+    trunk(parts, [[0, 0, 0], [0.05, 2.5, 0], [0, 5.2, 0.05]], 0.22, 0.06, '#5b4331');
+    const tiers = [[1.9, 1.3, 1.7], [1.6, 1.2, 2.5], [1.3, 1.1, 3.3], [1.0, 1.0, 4.1], [0.65, 1.0, 4.9]];
+    tiers.forEach(([r, h, y], i) => parts.push({ geo: new THREE.ConeGeometry(r, h, 8), color: i % 2 ? '#2e5a3f' : '#35674a', matrix: mat(Math.sin(i * 2.1) * 0.08, y, Math.cos(i * 1.7) * 0.08, 0, i * 0.4, 0, 1, 1, 1) }));
+  } else if (type === 'song') {
+    // 中國山水畫的松：歪斜的樹幹，扁平的雲狀枝葉
+    trunk(parts, [[0, 0, 0], [0.35, 1.2, 0.1], [0.1, 2.4, -0.1], [0.6, 3.4, 0.15], [0.3, 4.3, 0]], 0.22, 0.08, '#6b4b36');
+    trunk(parts, [[0.2, 2.2, 0], [-0.9, 2.8, 0.2], [-1.6, 3.0, 0.1]], 0.1, 0.04, '#6b4b36');
+    trunk(parts, [[0.5, 3.3, 0.1], [1.5, 3.7, -0.3]], 0.08, 0.04, '#6b4b36');
+    const pads = [[-1.6, 3.1, 0.1, 1.1], [1.6, 3.8, -0.3, 1.0], [0.3, 4.5, 0, 1.3], [-0.4, 3.9, 0.6, 0.8]];
+    pads.forEach(([x, y, z, r], i) => parts.push({ geo: blob(r, 40 + i, 1, 0.38), color: i % 2 ? '#3b6443' : '#47724c', matrix: mat(x, y, z) }));
   } else if (type === 'broad') {
-    g = mergeColored([
-      { geo: new THREE.CylinderGeometry(0.14, 0.24, 2.4, 5), color: '#5e4636', matrix: mat(0, 1.2, 0) },
-      { geo: new THREE.IcosahedronGeometry(1.6, 0), color: '#4f7a45', matrix: mat(0, 3.2, 0, 0, 0, 0, 1, 0.85, 1) },
-      { geo: new THREE.IcosahedronGeometry(1.1, 0), color: '#5d8a4f', matrix: mat(0.7, 3.8, 0.3) },
-      { geo: new THREE.IcosahedronGeometry(1.0, 0), color: '#476f3e', matrix: mat(-0.6, 3.6, -0.4) },
-    ]);
+    trunk(parts, [[0, 0, 0], [0.1, 1.6, 0], [-0.1, 2.8, 0.1]], 0.24, 0.12, '#5e4636');
+    trunk(parts, [[0.05, 1.8, 0], [0.8, 2.8, 0.3]], 0.1, 0.06, '#5e4636');
+    [[0, 3.4, 0, 1.5], [0.9, 3.1, 0.4, 1.1], [-0.8, 3.0, -0.3, 1.1], [0.2, 4.1, -0.3, 1.0], [-0.3, 3.6, 0.8, 0.9]]
+      .forEach(([x, y, z, r], i) => parts.push({ geo: blob(r, 60 + i, 1, 0.85), color: ['#4f7a45', '#5d8a4f', '#476f3e', '#56834a', '#4a7442'][i], matrix: mat(x, y, z) }));
   } else if (type === 'bamboo') {
-    const parts = [];
-    for (let i = 0; i < 5; i++) {
-      const a = i / 5 * Math.PI * 2, r = 0.35;
-      parts.push({ geo: new THREE.CylinderGeometry(0.05, 0.06, 5, 5), color: '#7b9a52', matrix: mat(Math.cos(a) * r, 2.5, Math.sin(a) * r, Math.cos(a) * 0.08, 0, Math.sin(a) * 0.08) });
+    // 竹叢：細長竹竿微向外斜，頂部一簇簇向外垂的竹葉
+    const rr = rng(7);
+    for (let i = 0; i < 11; i++) {
+      const a = rr() * Math.PI * 2, r = 0.1 + rr() * 0.45, h = 4 + rr() * 2.4;
+      const lean = 0.05 + rr() * 0.08;
+      const bx = Math.cos(a) * r, bz = Math.sin(a) * r;
+      const tx = bx + Math.cos(a) * lean * h, tz = bz + Math.sin(a) * lean * h;
+      trunk(parts, [[bx, 0, bz], [tx, h, tz]], 0.045, 0.028, i % 2 ? '#7d9d52' : '#6a8a44');
+      for (let k = 0; k < 4; k++) {
+        const y = h * (0.6 + k * 0.12), f = y / h;
+        const ox = bx + (tx - bx) * f + Math.cos(a + (rr() - .5)) * (0.35 + rr() * 0.3);
+        const oz = bz + (tz - bz) * f + Math.sin(a + (rr() - .5)) * (0.35 + rr() * 0.3);
+        parts.push({ geo: blob(0.38 + rr() * 0.15, 90 + i * 5 + k, 0, 0.3), color: ['#7aa04e', '#6a9145', '#88ad58', '#5f8640'][k], matrix: mat(ox, y - 0.15, oz, (rr() - .5) * 0.6, rr() * 3, 0.35 + rr() * 0.3, 1.4, 1, 0.8) });
+      }
     }
-    parts.push({ geo: new THREE.IcosahedronGeometry(1.2, 0), color: '#6d9147', matrix: mat(0, 4.8, 0, 0, 0, 0, 1, 1.4, 1) });
-    g = mergeColored(parts);
   } else if (type === 'maple') {
-    g = mergeColored([
-      { geo: new THREE.CylinderGeometry(0.12, 0.22, 2.2, 5), color: '#5a3f30', matrix: mat(0, 1.1, 0) },
-      { geo: new THREE.IcosahedronGeometry(1.5, 0), color: '#b8633a', matrix: mat(0, 3.0, 0, 0, 0, 0, 1, 0.8, 1) },
-      { geo: new THREE.IcosahedronGeometry(1.0, 0), color: '#c9803f', matrix: mat(0.6, 3.6, 0.2) },
-    ]);
+    trunk(parts, [[0, 0, 0], [-0.15, 1.5, 0.05], [0.1, 2.6, 0]], 0.2, 0.1, '#5a3f30');
+    [[0, 3.1, 0, 1.4, '#b8563a'], [0.8, 2.8, 0.3, 1.0, '#c9783f'], [-0.7, 2.9, -0.2, 1.0, '#a8452f'], [0.1, 3.8, 0.2, 0.9, '#d69347']]
+      .forEach(([x, y, z, r, c], i) => parts.push({ geo: blob(r, 120 + i, 1, 0.8), color: c, matrix: mat(x, y, z) }));
+  } else if (type === 'ginkgo') {
+    trunk(parts, [[0, 0, 0], [0, 2, 0], [0.05, 3.6, 0]], 0.2, 0.08, '#5e4a38');
+    [[0, 3.0, 0, 1.3], [0, 4.0, 0, 0.9], [0.5, 2.6, 0.3, 0.8]].forEach(([x, y, z, r], i) => parts.push({ geo: blob(r, 150 + i, 1, 1.1), color: i ? '#d7b64e' : '#c9a33f', matrix: mat(x, y, z) }));
   } else if (type === 'bush') {
-    g = mergeColored([
-      { geo: new THREE.IcosahedronGeometry(0.9, 0), color: '#4c6e3c', matrix: mat(0, 0.5, 0, 0, 0, 0, 1.2, 0.8, 1) },
-      { geo: new THREE.IcosahedronGeometry(0.7, 0), color: '#5b7e43', matrix: mat(0.6, 0.6, 0.2) },
-    ]);
+    [[0, 0.5, 0, 0.9], [0.6, 0.55, 0.2, 0.7], [-0.4, 0.45, -0.4, 0.65]].forEach(([x, y, z, r], i) => parts.push({ geo: blob(r, 170 + i, 1, 0.75), color: ['#4c6e3c', '#5b7e43', '#557a3e'][i], matrix: mat(x, y, z) }));
+  } else if (type === 'reed') {
+    const rr = rng(11);
+    for (let i = 0; i < 12; i++) {
+      const a = rr() * 6.28, r = rr() * 0.5, h = 1.2 + rr() * 0.8;
+      parts.push({ geo: new THREE.CylinderGeometry(0.008, 0.02, h, 3), color: '#a59a62', matrix: mat(Math.cos(a) * r, h / 2, Math.sin(a) * r, (rr() - .5) * 0.3, 0, (rr() - .5) * 0.3) });
+      parts.push({ geo: new THREE.ConeGeometry(0.05, 0.28, 4), color: '#e2d7b7', matrix: mat(Math.cos(a) * r, h, Math.sin(a) * r, Math.PI, 0, (rr() - .5) * 0.4) });
+    }
   }
+  const g = mergeColored(parts);
   treeGeoCache[type] = g;
   return g;
 }
@@ -226,12 +266,12 @@ export function makeTrees(items, heightAt, { tint = true } = {}) {
     const list = byType[type];
     const mesh = new THREE.InstancedMesh(treeGeometry(type), vcMat(), list.length);
     list.forEach((it, i) => {
-      q.setFromEuler(new THREE.Euler(0, it.rot ?? 0, 0));
+      q.setFromEuler(new THREE.Euler(it.tilt ?? 0, it.rot ?? 0, 0));
       s.set(it.s, it.s * (it.sy ?? 1), it.s);
       p.set(it.x, heightAt(it.x, it.z) - 0.1, it.z);
       m4.compose(p, q, s);
       mesh.setMatrixAt(i, m4);
-      if (tint) { const v = 0.85 + ((i * 9301 + 49297) % 233280) / 233280 * 0.3; c.setRGB(v, v, v); mesh.setColorAt(i, c); }
+      if (tint) { const r1 = ((i * 9301 + 49297) % 233280) / 233280, r2 = ((i * 4271 + 1231) % 7919) / 7919; c.setRGB(0.82 + r1 * 0.3, 0.84 + r1 * 0.26 + (r2 - 0.5) * 0.08, 0.82 + r1 * 0.24 - (r2 - 0.5) * 0.06); mesh.setColorAt(i, c); }
     });
     mesh.instanceMatrix.needsUpdate = true;
     group.add(mesh);

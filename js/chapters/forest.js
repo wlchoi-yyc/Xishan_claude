@@ -6,11 +6,13 @@ import {
   baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makeWinePot, makeCup, makeMat,
   makeFootprints, pathPoints, makeRibbon, makeWater, makePerson, fbm, noise2, rng, mixHex, smoothstep, lam, textCanvas, makeStaff,
 } from '../world.js';
+import { makeClouds, makeMist, makeGrassField, makePinnacle } from '../scenery.js';
+import { autumnGround } from './pavilion.js';
 
 // ---------------- 共用地形著色 ----------------
 function forestColor(h, slope, x, z) {
   const n = noise2(x * 0.08, z * 0.08, 5) * 0.5 + 0.5;
-  let c = mixHex('#5f7a3f', '#7d8a48', n);
+  let c = autumnGround(x * 3, z * 3, mixHex('#5f7a3f', '#7d8a48', n));
   if (slope > 0.35) c = mixHex(c, '#7a6e58', smoothstep(0.35, 0.6, slope));
   if (h > 16) c = mixHex(c, '#8a8a70', smoothstep(16, 28, h));
   return c;
@@ -78,7 +80,7 @@ function buildForest() {
     const edge = Math.hypot(x, z) > 60;
     if (!dense && !edge && r() > 0.35) return false;
     const t = r();
-    return { type: dense ? (t < 0.6 ? 'pine' : 'broad') : (t < 0.4 ? 'pine' : t < 0.75 ? 'broad' : t < 0.9 ? 'maple' : 'bamboo'), s: dense ? 1.1 + r() * 0.8 : 0.8 + r() * 0.7 };
+    return { type: dense ? (t < 0.5 ? 'pine' : t < 0.85 ? 'broad' : 'song') : (t < 0.3 ? 'pine' : t < 0.55 ? 'broad' : t < 0.72 ? 'maple' : t < 0.82 ? 'ginkgo' : t < 0.92 ? 'bamboo' : 'song'), s: dense ? 1.1 + r() * 0.8 : 0.8 + r() * 0.7 };
   }, { x0: -150, x1: 150, z0: -150, z1: 150 });
   // 高山路徑附近保持開闊
   scene.add(makeTrees(trees, forestHeight));
@@ -111,8 +113,21 @@ function buildForest() {
     g.position.set(x, forestHeight(x, z), z); scene.add(g);
   }
 
+  // 草地、溪邊蘆葦、雲、谷中薄霧、怪石間的石筍
+  scene.add(makeGrassField({ count: 3200, area: { x0: -115, x1: 115, z0: -115, z1: 115 }, heightAt: forestHeight, accept: (x, z) => distToPolyline(x, z, CREEK) > 2.5 && Math.hypot(x - ZONES.spring.x, z - ZONES.spring.z) > 8, seed: 5 }));
+  const reeds = [];
+  pathPoints(CREEK, 5).forEach((p, i) => { const side = i % 2 ? 2.6 : -2.6; reeds.push({ type: 'reed', x: p.x + side, z: p.z + (rr() - 0.5) * 2, s: 0.6 + rr() * 0.4, rot: rr() * 6 }); });
+  scene.add(makeTrees(reeds, forestHeight));
+  for (let i = 0; i < 4; i++) {
+    const a = i * 1.6, x = ZONES.rocks.x + Math.cos(a) * 9, z = ZONES.rocks.z + Math.sin(a) * 9;
+    const pn = makePinnacle(4 + rr() * 4, 60 + i, { width: 0.3 }); pn.position.set(x, forestHeight(x, z) - 0.5, z); scene.add(pn);
+  }
+  const clouds = makeClouds({ count: 22, rMin: 300, rMax: 900, yMin: 140, yMax: 240, size: [160, 320], seed: 13 });
+  const mist = makeMist({ count: 18, center: [30, 0], rMax: 110, heightAt: forestHeight, lift: 1.5, size: [25, 50], opacity: 0.22, seed: 14 });
+  scene.add(clouds, mist);
+
   const world = {
-    scene,
+    scene, animated: [clouds, mist],
     heightAt: forestHeight,
     clamp: v => { const r = Math.hypot(v.x, v.z); if (r > 118) { v.x *= 118 / r; v.z *= 118 / r; } },
     blockers: trees.filter(t => t.s > 0.9).map(t => ({ x: t.x, z: t.z, r: 0.35 * t.s })),
@@ -260,7 +275,7 @@ function buildGlade() {
   const { scene } = B;
   const terrain = makeTerrain({ size: 140, seg: 70, heightAt: gladeHeight, colorAt: (h, s, x, z) => mixHex('#6d8a43', '#8e9a52', noise2(x * 0.15, z * 0.15, 3) * 0.5 + 0.5) });
   scene.add(terrain);
-  const trees = scatter(160, 5, (x, z, r) => { const d = Math.hypot(x, z); if (d < 17) return false; if (Math.abs(x) < 3 && z > 0) return false; return { type: r() < 0.5 ? 'pine' : r() < 0.8 ? 'broad' : 'maple', s: 1 + r() * 0.8 }; }, { x0: -60, x1: 60, z0: -60, z1: 60 });
+  const trees = scatter(170, 5, (x, z, r) => { const d = Math.hypot(x, z); if (d < 17) return false; if (Math.abs(x) < 3 && z > 0) return false; const t = r(); return { type: t < 0.35 ? 'pine' : t < 0.65 ? 'broad' : t < 0.82 ? 'maple' : t < 0.92 ? 'ginkgo' : 'song', s: 1 + r() * 0.8 }; }, { x0: -60, x1: 60, z0: -60, z1: 60 });
   scene.add(makeTrees(trees, gladeHeight));
   const rr = rng(3);
   for (let i = 0; i < 26; i++) {
@@ -275,8 +290,13 @@ function buildGlade() {
     b.position.set((rr() - .5) * 20, 12, (rr() - .5) * 20); b.rotation.z = 0.25; b.rotation.x = 0.1; scene.add(b);
   }
   const bigRock = makeRock(1.3, '#8a8778', 5); bigRock.position.set(3.5, gladeHeight(3.5, -2) + 0.5, -2); bigRock.scale.y = 0.7; scene.add(bigRock);
+  // 草地（避開地上的痕跡）
+  const keep = [[-3, 2, 2.2], [3, -0.6, 1], [-5, -6, 2], [6, 5, 1.8], [-9, -13, 1.5]];
+  scene.add(makeGrassField({ count: 900, area: { x0: -30, x1: 30, z0: -30, z1: 30 }, heightAt: gladeHeight, accept: (x, z) => keep.every(([kx, kz, kr]) => Math.hypot(x - kx, z - kz) > kr), seed: 15, scale: [0.4, 0.8] }));
+  const clouds = makeClouds({ count: 12, rMin: 200, rMax: 500, yMin: 120, yMax: 200, size: [120, 240], seed: 16 });
+  scene.add(clouds);
   return {
-    scene, heightAt: gladeHeight,
+    scene, heightAt: gladeHeight, animated: [clouds],
     clamp: v => { const r = Math.hypot(v.x, v.z); if (r > 22) { v.x *= 22 / r; v.z *= 22 / r; } },
     blockers: [{ x: 3.5, z: -2, r: 1 }],
     walkables: [terrain],

@@ -3,20 +3,62 @@
 import { E, THREE, ui, audio, enter, clue, watch, until, dist2D } from './common.js';
 import { addInteractable, removeInteractable, freeze, unfreeze, wait, lookAt, moveTo, turnTo, tween, setControls, isLookingAt, lerp } from '../engine.js';
 import { baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makePavilion, makeHouse, makePerson, fbm, noise2, rng, mixHex, smoothstep, lam } from '../world.js';
+import { makeClouds, makeMist, makeGrassField, makePinnacle, terrace } from '../scenery.js';
 
 // 西山位置（相對法華西亭）
 export const XISHAN = { x: -900, z: -150, h: 250 };
 
 // 西山的形狀：陡峭、有稜角、與四周圓潤的小山不同
+const XS_PEAKS = [[0, 0, 1.0, 260], [85, -70, 0.72, 150], [-95, 45, 0.62, 140], [35, 115, 0.55, 120], [-60, -110, 0.48, 110]];
 export function xishanShape(x, z, cx, cz, H) {
-  const dx = x - cx, dz = z - cz;
-  const d = Math.hypot(dx, dz);
-  const ang = Math.atan2(dz, dx);
-  const ridge = 1 + 0.18 * Math.sin(ang * 5 + 1) + 0.1 * Math.sin(ang * 11);
-  const base = Math.max(0, 1 - d / (260 * ridge));
-  const cliff = Math.pow(base, 1.6);
-  const crag = (1 - Math.abs(noise2(x * 0.02, z * 0.02, 44))) * 0.18 * base;
-  return H * (cliff + crag);
+  let h = 0, baseMax = 0;
+  for (const [ox, oz, w, R] of XS_PEAKS) {
+    const dx = x - cx - ox, dz = z - cz - oz;
+    const d = Math.hypot(dx, dz);
+    const ang = Math.atan2(dz, dx);
+    const ridge = 1 + 0.2 * Math.sin(ang * 5 + ox) + 0.1 * Math.sin(ang * 11 + oz);
+    const base = Math.max(0, 1 - d / (R * ridge));
+    baseMax = Math.max(baseMax, base);
+    h = Math.max(h, H * w * Math.pow(base, 1.45));
+  }
+  // 稜角分明的岩脊
+  const crag = (1 - Math.abs(noise2(x * 0.018, z * 0.018, 44))) * 0.16 * H * baseMax;
+  // 一級級斷崖：西山的「怪特」
+  return terrace(h + crag, H * 0.075, 0.7 * Math.min(1, baseMax * 3));
+}
+
+/** 西山的岩壁顏色：平台長樹、崖壁灰白，並有一道道岩層 */
+export function xishanColor(h, slope, x, z, n) {
+  let c = mixHex('#3f5d3a', '#56703f', n);
+  const rock = mixHex('#c9bfa6', '#aaa08a', noise2(x * 0.05, h * 0.2, 7) * 0.5 + 0.5);
+  c = c.lerp(rock, smoothstep(0.42, 0.62, slope));
+  const strata = Math.abs(Math.sin(h * 0.35)) ;
+  if (slope > 0.5) c.multiplyScalar(0.86 + strata * 0.18);
+  return c;
+}
+
+/** 西山四周的石峰（永州一帶的喀斯特地貌） */
+export function addXishanPinnacles(scene, cx, cz, heightAt, seed = 3, count = 9) {
+  const r = rng(seed);
+  for (let i = 0; i < count; i++) {
+    const a = r() * Math.PI * 2, d = 130 + r() * 170;
+    const x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d;
+    const h = 45 + r() * 75;
+    const p = makePinnacle(h, seed * 10 + i, { width: 0.2 + r() * 0.1 });
+    p.position.set(x, heightAt(x, z) - 6, z);
+    scene.add(p);
+  }
+}
+
+/** 通用的「秋日山林」地面著色：草地、秋黃、裸土斑塊 */
+export function autumnGround(x, z, base) {
+  const n1 = noise2(x * 0.004, z * 0.004, 31) * 0.5 + 0.5;
+  const n2 = noise2(x * 0.03, z * 0.03, 32) * 0.5 + 0.5;
+  let c = base.clone();
+  c.lerp(new THREE.Color('#a39a58'), smoothstep(0.62, 0.85, n1) * 0.55);
+  c.lerp(new THREE.Color('#8a7a58'), smoothstep(0.75, 0.95, n2) * 0.35);
+  c.multiplyScalar(0.92 + n2 * 0.16);
+  return c;
 }
 
 const bumps = (() => {
@@ -51,11 +93,9 @@ function vistaColor(h, slope, x, z) {
   const n = noise2(x * 0.01, z * 0.01, 8) * 0.5 + 0.5;
   if (dW < 300) {
     // 西山：蒼翠中露出淺色岩壁
-    let c = mixHex('#3f5d3a', '#4f6b3d', n);
-    if (slope > 0.3) c = mixHex(c, '#c9bfa6', smoothstep(0.3, 0.55, slope));
-    return c;
+    return xishanColor(h, slope, x, z, n);
   }
-  let c = mixHex('#6f8a4a', '#8a9656', n);
+  let c = autumnGround(x, z, mixHex('#6f8a4a', '#8a9656', n));
   if (h < -2) c = mixHex('#7c7a5e', '#6d6a55', n);
   if (slope > 0.45) c = mixHex(c, '#7d735c', 0.5);
   return c;
@@ -87,13 +127,18 @@ function buildVista() {
   const trees = scatter(900, 4, (x, z, rr) => {
     const d0 = Math.hypot(x, z);
     if (d0 < 12) return false;
-    if (Math.hypot(x - XISHAN.x, z - XISHAN.z) < 280) return rr() < 0.6 ? { type: 'pine', s: 3 + rr() * 2 } : false;
+    if (Math.hypot(x - XISHAN.x, z - XISHAN.z) < 280) return rr() < 0.6 ? { type: rr() < 0.5 ? 'song' : 'pine', s: 3 + rr() * 2 } : false;
     const h = vistaHeight(x, z);
     if (h < 0) return false;
     if (d0 > 80 && rr() < 0.5) return false;
-    return { type: rr() < 0.45 ? 'pine' : rr() < 0.8 ? 'broad' : 'maple', s: d0 < 80 ? 1 + rr() * 0.8 : 2.5 + rr() * 2 };
+    const t = rr();
+    return { type: t < 0.35 ? 'pine' : t < 0.65 ? 'broad' : t < 0.8 ? 'maple' : t < 0.9 ? 'ginkgo' : 'bamboo', s: d0 < 80 ? 1 + rr() * 0.8 : 2.5 + rr() * 2 };
   }, { x0: -1300, x1: 1300, z0: -1300, z1: 1300 });
+  // 亭旁兩棵古松，框住景色
+  trees.push({ type: 'song', x: 9, z: 7, s: 1.6, rot: 2.2 }, { type: 'song', x: -8, z: 10, s: 1.3, rot: 0.6 });
   scene.add(makeTrees(trees, vistaHeight));
+  scene.add(makeGrassField({ count: 1400, area: { x0: -40, x1: 40, z0: -40, z1: 40 }, heightAt: vistaHeight, accept: (x, z) => Math.hypot(x, z) > 4.5, seed: 12, scale: [0.45, 0.9] }));
+  addXishanPinnacles(scene, XISHAN.x, XISHAN.z, vistaHeight, 3);
 
   // 西山頂的光暈（「始指異之」時亮起）
   const haloTex = (() => {
@@ -109,13 +154,11 @@ function buildVista() {
   halo.position.set(XISHAN.x - 60, peakY + 40, XISHAN.z - 10);
   halo.scale.set(900, 700, 1);
   scene.add(halo);
-  // 雲
-  const cloudM = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.85 });
-  for (let i = 0; i < 26; i++) {
-    const c = new THREE.Mesh(new THREE.IcosahedronGeometry(30 + r() * 40, 1), cloudM);
-    const a = r() * 6.28, d = 700 + r() * 900;
-    c.position.set(Math.cos(a) * d, 320 + r() * 160, Math.sin(a) * d); c.scale.y = 0.3; scene.add(c);
-  }
+  // 雲與霧
+  const clouds = makeClouds({ count: 34, rMin: 700, rMax: 2000, yMin: 300, yMax: 520, seed: 4 });
+  const mist = makeMist({ count: 26, center: [XISHAN.x + 120, XISHAN.z], rMax: 420, y: 18, yJitter: 16, size: [120, 260], opacity: 0.45, seed: 5 });
+  const riverMist = makeMist({ count: 18, center: [-300, 0], rMax: 700, y: 6, size: [120, 220], opacity: 0.3, seed: 6 });
+  scene.add(clouds, mist, riverMist);
 
   // 亭內可坐處的碰撞（柱與欄杆）
   const blockers = [];
@@ -132,7 +175,7 @@ function buildVista() {
     clamp: v => { const d = Math.hypot(v.x, v.z); if (d > 22) { v.x *= 22 / d; v.z *= 22 / d; } },
     blockers, walkables: [terrain, pav],
     peak: new THREE.Vector3(XISHAN.x, peakY + 10, XISHAN.z),
-    halo,
+    halo, animated: [clouds, mist, riverMist],
   };
 }
 
