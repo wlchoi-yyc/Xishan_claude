@@ -655,7 +655,7 @@ async function ending() {
     ${ui.fullTextHTML()}
     <div style="text-align:center;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
       <button class="primary" id="endJournal">翻看日誌</button>
-      <button class="primary" id="endReplay" style="background:#3d5f58">再玩一次</button>
+      <button class="primary" id="endReplay" style="background:#3d5f58">回到首頁</button>
     </div>`;
   const p = ui.modal(html, { closable: false });
   document.getElementById('endJournal').addEventListener('click', async () => { ui.closeModal(); await ui.openJournal('心境'); ending(); });
