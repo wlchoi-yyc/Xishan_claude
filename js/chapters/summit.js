@@ -220,7 +220,7 @@ export async function chapter7() {
   audio.music('xishan');
   W = await enter(buildSummit, { x: -3, z: -1, yaw: Math.PI / 2, pitch: -0.14 }, { fade: 1.6 });
   ui.showDpad(true);
-  await ui.chapterCard('第七關', '西山之頂', '全遊戲第一個高潮');
+  await ui.chapterCard('第七關', '西山之頂');
   freeze();
   await ui.say('', '你終於登上了西山之頂。');
   await ui.say('', '山頂上……沒有人。');
@@ -637,8 +637,8 @@ async function epilogue(w, liu) {
   ui.journalAdd('心境', '從前未曾真正遊賞；真正的「遊」，從這一次西山之遊才開始。', '然後知吾嚮之未始遊，遊於是乎始');
   await wait(8);
   await ui.hideCaption();
-  await ui.chapterCard('', '《尋找柳宗元》', '');
-  await ui.whisper('原來「尋找柳宗元」，不只是你在尋找柳宗元——也是柳宗元在西山，重新找到了自己。', { hold: 7 });
+  await ui.chapterCard('', '原來，不只是你在尋找柳宗元......', '');
+  await ui.whisper('也是柳宗元在西山，重新找到了自己。', { hold: 7 });
   await ui.caption('故為之文以志。是歲，元和四年也。', { gloss: '所以寫下這篇文章記錄這件事。這一年，是元和四年（公元 809 年）。', hold: 6 });
   ui.litText('故為之文以志');
   ui.litText('是歲，元和四年也');
@@ -655,7 +655,7 @@ async function ending() {
     ${ui.fullTextHTML()}
     <div style="text-align:center;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
       <button class="primary" id="endJournal">翻看日誌</button>
-      <button class="primary" id="endReplay" style="background:#3d5f58">再玩一次</button>
+      <button class="primary" id="endReplay" style="background:#3d5f58">回到首頁</button>
     </div>`;
   const p = ui.modal(html, { closable: false });
   document.getElementById('endJournal').addEventListener('click', async () => { ui.closeModal(); await ui.openJournal('心境'); ending(); });
