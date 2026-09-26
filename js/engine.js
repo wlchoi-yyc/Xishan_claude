@@ -137,6 +137,9 @@ export function addInteractable(opts) {
   if (it.marker) {
     const el = document.createElement('div');
     el.className = 'marker';
+    // 發光圈本身也可點擊，效果與點擊物件相同
+    el.addEventListener('pointerdown', e => e.stopPropagation());
+    el.addEventListener('click', e => { e.stopPropagation(); activateIt(it); });
     const lab = document.createElement('div');
     lab.className = 'mlabel';
     lab.textContent = it.label || '';
@@ -257,8 +260,18 @@ function handleClick(x, y) {
   if (!E.input.interact) return;
   if (E.tool && E.tool.onClick && E.tool.onClick(x, y)) return;
   const pick = pickInteractable(x, y);
-  if (pick) {
-    const it = pick.it;
+  if (pick) { activateIt(pick.it); return; }
+  if (!E.input.move || !E.world || !E.world.walkables) return;
+  const hits = raycastFrom(x, y, E.world.walkables);
+  if (hits.length) {
+    const p = hits[0].point;
+    if (distXZ(E.player.pos, p) < 80) walkTo(p.x, p.z, 0.3);
+  }
+}
+// 點擊物件或其發光圈：夠近便觸發，太遠便先走過去
+function activateIt(it) {
+  if (!E.input.interact || !it.enabled) return;
+  {
     const d = distXZ(E.player.pos, it.object.getWorldPosition(new THREE.Vector3()));
     if (d <= it.range || !it.walk || !E.input.move) {
       triggerIt(it);
@@ -269,13 +282,6 @@ function handleClick(x, y) {
         if (d2 <= it.range + 1.2) triggerIt(it);
       });
     }
-    return;
-  }
-  if (!E.input.move || !E.world || !E.world.walkables) return;
-  const hits = raycastFrom(x, y, E.world.walkables);
-  if (hits.length) {
-    const p = hits[0].point;
-    if (distXZ(E.player.pos, p) < 80) walkTo(p.x, p.z, 0.3);
   }
 }
 function triggerIt(it) {

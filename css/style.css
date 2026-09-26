@@ -38,7 +38,10 @@ button { font-family: var(--serif); cursor: pointer; }
   background: radial-gradient(circle, rgba(255,220,140,.45), rgba(255,220,140,0) 70%);
   animation: pulse 1.8s ease-in-out infinite;
   transition: opacity .3s;
+  pointer-events: auto; cursor: pointer;
 }
+/* 擴大可點範圍，方便手指點按 */
+.marker::before { content: ""; position: absolute; inset: -14px; border-radius: 50%; }
 .marker::after {
   content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
   border-radius: 50%; background: #ffe7b0;
