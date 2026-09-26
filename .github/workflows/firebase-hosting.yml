@@ -23,6 +23,7 @@ jobs:
           project_id: mulan-journey
           workload_identity_provider: projects/733094425911/locations/global/workloadIdentityPools/xishan-claude/providers/github
           service_account: xishan-claude-deploy@mulan-journey.iam.gserviceaccount.com
+          token_format: access_token
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
