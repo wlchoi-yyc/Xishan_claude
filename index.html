@@ -11,6 +11,11 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<section id="authGate" role="region" aria-label="登入" style="position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:24px;background:#172322;color:#f0e7d3;text-align:center;font-family:system-ui,sans-serif">
+  <div><h1>尋找柳宗元</h1><p id="authMessage" role="status" aria-live="polite">正在載入登入服務……</p><button id="googleLoginButton" disabled>使用 Google 帳號登入</button></div>
+</section>
+<div id="experience" hidden>
+<button id="authLogout" style="position:fixed;right:12px;bottom:12px;z-index:50">登出</button>
 <canvas id="gl"></canvas>
 
 <!-- 準星 -->
@@ -99,6 +104,10 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js"></script>
+</div>
+<script src="/__/firebase/8.10.1/firebase-app.js"></script>
+<script src="/__/firebase/8.10.1/firebase-auth.js"></script>
+<script src="/__/firebase/8.10.1/firebase-firestore.js"></script>
+<script type="module" src="auth.js"></script>
 </body>
 </html>

@@ -1,0 +1,7 @@
+{
+  "hosting": {
+    "site": "xishan-claude-wlchoi",
+    "public": ".",
+    "ignore": ["firebase.json", ".firebaserc", ".git/**", "node_modules/**", "README.md", "package.json", "package-lock.json", "build.mjs", "dist/**"]
+  }
+}
