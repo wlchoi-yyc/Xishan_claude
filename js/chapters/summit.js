@@ -220,7 +220,7 @@ export async function chapter7() {
   audio.music('xishan');
   W = await enter(buildSummit, { x: -3, z: -1, yaw: Math.PI / 2, pitch: -0.14 }, { fade: 1.6 });
   ui.showDpad(true);
-  await ui.chapterCard('第七關', '西山之頂', '全遊戲第一個高潮');
+  await ui.chapterCard('第七關', '西山之頂');
   freeze();
   await ui.say('', '你終於登上了西山之頂。');
   await ui.say('', '山頂上……沒有人。');
