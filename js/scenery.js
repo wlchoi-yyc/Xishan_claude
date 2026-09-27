@@ -125,16 +125,23 @@ export function makeGrassField({ count = 1500, area, heightAt, accept = () => tr
 export function makePinnacle(height = 40, seed = 1, { width = 0.28, rock = '#a79d88', moss = '#56703f' } = {}) {
   const r = rng(seed);
   const rad = height * width;
-  const geo = new THREE.CylinderGeometry(rad * 0.25, rad, height, 8, 10);
+  // 頂部較寬、崩裂參差（不做圓頂），石身有橫向岩層，像風化的喀斯特石峰
+  const geo = new THREE.CylinderGeometry(rad * 0.55, rad, height, 9, 12);
   const pos = geo.attributes.position;
   const lean = (r() - 0.5) * 0.25, lean2 = (r() - 0.5) * 0.25;
+  const half = height / 2;
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const x = pos.getX(i), z = pos.getZ(i);
+    let y = pos.getY(i);
     const k = (y / height) + 0.5;
-    const n = 0.75 + 0.5 * (noise2(x * 0.6 + seed, y * 0.35, seed) * 0.5 + 0.5);
-    // 腰部收窄，頂部略膨大，像石筍
-    const waist = 1 - Math.sin(k * Math.PI) * 0.18 + (k > 0.8 ? (k - 0.8) * 0.8 : 0);
-    pos.setXYZ(i, x * n * waist + lean * k * height, y, z * n * waist + lean2 * k * height);
+    const ang = Math.atan2(z, x);
+    const n = 0.7 + 0.6 * (noise2(Math.cos(ang) * 2 + seed, y * 0.3, seed) * 0.5 + 0.5);
+    // 岩層：每隔一段向內收一級
+    const strata = 1 - 0.1 * (Math.floor(k * 7 + noise2(ang, seed, 3) * 0.8) % 2);
+    const waist = 1 - Math.sin(k * Math.PI) * 0.12;
+    // 頂部：不平的斷口，有高有低
+    if (y > half - 1e-3) y -= (noise2(Math.cos(ang) * 1.7 + seed * 3, Math.sin(ang) * 1.7, seed + 7) * 0.5 + 0.5) * height * 0.22 + (Math.hypot(x, z) < 1e-3 ? height * 0.05 : 0);
+    pos.setXYZ(i, x * n * waist * strata + lean * k * height, y, z * n * waist * strata + lean2 * k * height);
   }
   let g = geo.toNonIndexed(); g.computeVertexNormals();
   const p = g.attributes.position, nrm = g.attributes.normal;
@@ -143,7 +150,7 @@ export function makePinnacle(height = 40, seed = 1, { width = 0.28, rock = '#a79
     const y = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3 / height + 0.5;
     const up = nrm.getY(i);
     c.copy(cr).lerp(dark, 0.35 * (1 - y) + (noise2(i * 0.37, y * 7, seed) * 0.5 + 0.5) * 0.3);
-    if (up > 0.45 || y > 0.9) c.lerp(cm, 0.8);
+    if (up > 0.55) c.lerp(cm, 0.7);   // 只在平台面長青苔，不再整個頂部蓋綠
     for (let k = 0; k < 3; k++) { cols[(i + k) * 3] = c.r; cols[(i + k) * 3 + 1] = c.g; cols[(i + k) * 3 + 2] = c.b; }
   }
   g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
