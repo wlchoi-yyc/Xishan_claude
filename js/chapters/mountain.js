@@ -435,7 +435,9 @@ function buildSlope() {
   }, { x0: -80, x1: 1400, z0: -800, z1: 800 });
   // 崖壁上的松：沿着攀爬路線兩旁
   for (let i = 0; i < 14; i++) { const y = 8 + i * 7, side = i % 2 ? 1 : -1; trees.push({ type: 'song', x: cliffX(y) + 0.6, z: side * (4 + (i * 1.3) % 3), s: 0.7 + (i % 3) * 0.2, rot: side > 0 ? 0.3 : 3.4, tilt: 0.25 }); }
-  scene.add(makeTrees(trees, slopeH));
+  // 遠處地形約 17 米一格：樹根取畫出來的地面與計算高度較低者，免得懸空
+  const groundAt = (x, z) => Math.min(slopeH(x, z), (Math.abs(x) < 100 && Math.abs(z) < 100 ? near : far).userData.surfaceAt(x, z)) - 0.2;
+  scene.add(makeTrees(trees, groundAt));
   const clouds = makeClouds({ count: 24, rMin: 500, rMax: 1500, yMin: 60, yMax: 260, size: [260, 520], seed: 19 });
   const mist = makeMist({ count: 30, center: [300, 0], rMax: 700, y: -8, yJitter: 6, size: [120, 260], opacity: 0.3, seed: 20 });
   scene.add(clouds, mist);

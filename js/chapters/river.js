@@ -132,7 +132,8 @@ function buildRiver() {
   }
   // 染溪邊的蘆葦
   pathPoints(CREEK, 6).forEach((p, i) => { if (i % 2) return; const side = i % 4 ? 3.5 : -3.5; trees.push({ type: 'reed', x: p.x + rr() * 2, z: p.z + side, s: 0.7 + rr() * 0.4 }); });
-  scene.add(makeTrees(trees, terrainH));
+  // 樹根取畫出來的地面（約 10 米一格）與計算高度較低者，免得在斜坡上懸空
+  scene.add(makeTrees(trees, (x, z) => Math.min(terrainH(x, z), terrain.userData.surfaceAt(x, z)) - 0.2));
   scene.add(makeGrassField({ count: 1600, area: { x0: -240, x1: 140, z0: -60, z1: 60 }, heightAt: terrainH, accept: (x, z) => Math.abs(x) > RIVER_HALF + 6 && !(x < -70 && distToPolyline(x, z, CREEK) < 3), seed: 21 }));
   addXishanPinnacles(scene, WEST_HILL.x, WEST_HILL.z, terrainH, 7, 10);
   const clouds = makeClouds({ count: 30, rMin: 600, rMax: 1600, yMin: 260, yMax: 460, seed: 8 });

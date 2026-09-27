@@ -105,8 +105,13 @@ function vistaColor(h, slope, x, z) {
 function buildVista() {
   const B = baseScene({ fog: '#d5dcd6', fogNear: 150, fogFar: 2300, sky: { top: '#6a9dcc', sunDir: [-0.45, 0.62, -0.35], sunColor: '#fff4dc' }, sun: ['#fff4e0', 1.9], hemi: ['#e4ecf2', '#5d5a44', 1.1] });
   const { scene } = B;
-  const terrain = makeTerrain({ size: 2800, seg: 200, heightAt: vistaHeight, colorAt: vistaColor });
-  scene.add(terrain);
+  // 大範圍地形格子約 14 米一格，亭所在的山頂畫不出來；所以亭四周 236 米另鋪一塊 2 米一格的細地形，
+  // 大地形在這個範圍內壓低，免得兩層重疊閃爍
+  const NEAR = 118;
+  const inNear = (x, z) => Math.abs(x) < NEAR && Math.abs(z) < NEAR;
+  const terrain = makeTerrain({ size: 2800, seg: 200, heightAt: (x, z) => vistaHeight(x, z) - (inNear(x, z) ? 12 : 0), colorAt: vistaColor });
+  const nearTerrain = makeTerrain({ size: NEAR * 2, seg: 118, heightAt: vistaHeight, colorAt: vistaColor });
+  scene.add(terrain, nearTerrain);
   // 湘江
   const river = new THREE.Mesh(new THREE.PlaneGeometry(200, 2800), new THREE.MeshPhongMaterial({ color: '#8fb4c2', shininess: 80, transparent: true, opacity: 0.92 }));
   river.rotation.x = -Math.PI / 2; river.position.set(-300, -1.5, 0); waterize(river, { scale: 0.18, strength: 0.14, flow: [0, 0.5] }); scene.add(river);
@@ -137,7 +142,9 @@ function buildVista() {
   }, { x0: -1300, x1: 1300, z0: -1300, z1: 1300 });
   // 亭旁兩棵古松，框住景色
   trees.push({ type: 'song', x: 9, z: 7, s: 1.6, rot: 2.2 }, { type: 'song', x: -8, z: 10, s: 1.3, rot: 0.6 });
-  scene.add(makeTrees(trees, vistaHeight));
+  // 樹根取「計算高度」與「畫出來的地面」較低者，免得在粗格子的山肩上懸空
+  const groundAt = (x, z) => Math.min(vistaHeight(x, z), (inNear(x, z) ? nearTerrain : terrain).userData.surfaceAt(x, z)) - 0.2;
+  scene.add(makeTrees(trees, groundAt));
   scene.add(makeGrassField({ count: 1400, area: { x0: -40, x1: 40, z0: -40, z1: 40 }, heightAt: vistaHeight, accept: (x, z) => Math.hypot(x, z) > 4.5, seed: 12, scale: [0.45, 0.9] }));
   addXishanPinnacles(scene, XISHAN.x, XISHAN.z, vistaHeight, 3);
 
@@ -175,7 +182,7 @@ function buildVista() {
   return {
     scene, heightAt, sky: B.sky, sun: B.sun,
     clamp: v => { const d = Math.hypot(v.x, v.z); if (d > 22) { v.x *= 22 / d; v.z *= 22 / d; } },
-    blockers, walkables: [terrain, pav],
+    blockers, walkables: [nearTerrain, terrain, pav],
     peak: new THREE.Vector3(XISHAN.x, peakY + 10, XISHAN.z),
     halo, animated: [clouds, mist, riverMist],
   };

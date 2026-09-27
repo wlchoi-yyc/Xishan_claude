@@ -127,6 +127,18 @@ export function makeTerrain({ size = 200, seg = 100, sizeZ, segZ, cx = 0, cz = 0
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const mesh = new THREE.Mesh(geo, terrainMat());
   mesh.userData.terrain = true;
+  // 畫出來的地面是一格格三角形，格子大時與 heightAt 的計算值會有落差（樹會懸空）。
+  // surfaceAt 按實際三角形內插，得出玩家真正看到的地面高度。
+  const SX = size, SZ = sizeZ ?? size, NX = seg, NZ = segZ ?? seg, dx = SX / NX, dz = SZ / NZ;
+  const hCache = new Map();
+  const hv = (ix, iz) => { const k = ix * 100003 + iz; let v = hCache.get(k); if (v === undefined) { v = heightAt(cx - SX / 2 + ix * dx, cz - SZ / 2 + iz * dz); hCache.set(k, v); } return v; };
+  mesh.userData.surfaceAt = (x, z) => {
+    const gx = (x - (cx - SX / 2)) / dx, gz = (z - (cz - SZ / 2)) / dz;
+    if (gx < 0 || gz < 0 || gx >= NX || gz >= NZ) return heightAt(x, z);
+    const ix = Math.floor(gx), iz = Math.floor(gz), u = gx - ix, v = gz - iz;
+    const ha = hv(ix, iz), hb = hv(ix, iz + 1), hc = hv(ix + 1, iz + 1), hd = hv(ix + 1, iz);
+    return u + v <= 1 ? ha + (hd - ha) * u + (hb - ha) * v : hc + (hb - hc) * (1 - u) + (hd - hc) * (1 - v);
+  };
   return mesh;
 }
 // 地形材質：在頂點顏色之上，於畫素層面加入以「米」為單位的深淺斑駁、乾草色塊與近處泥土顆粒，
