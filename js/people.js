@@ -721,7 +721,7 @@ export function makePerson(opts = {}) {
     ])), '#1a1918', 'silk');
     for (const s of [1, -1]) {
       const rb = new THREE.Group(); rb.position.set(0.022 * s, topY + 0.035, -0.1); face.add(rb);
-      add(rb, G(`foot|${s}`, () => ribbonGeo([[0, 0, 0], [0.01 * s, -0.06, -0.04], [0.016 * s, -0.16, -0.055], [0.02 * s, -0.27, -0.05], [0.022 * s, -0.33, -0.042]], 0.03, 0.036, new V3(0, 0, 1), 18, (t) => 0.9 + 0.1 * Math.sin(t * 12))), '#1d1c1b', 'silk', DS);
+      add(rb, G(`futouTail|${s}`, () => ribbonGeo([[0, 0, 0], [0.01 * s, -0.06, -0.04], [0.016 * s, -0.16, -0.055], [0.02 * s, -0.27, -0.05], [0.022 * s, -0.33, -0.042]], 0.03, 0.036, new V3(0, 0, 1), 18, (t) => 0.9 + 0.1 * Math.sin(t * 12))), '#1d1c1b', 'silk', DS);
       rb.rotation.x = 0.35; rb.rotation.z = 0.05 * s;
       ribbons.push(rb);
     }
