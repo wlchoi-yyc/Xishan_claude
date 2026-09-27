@@ -54,6 +54,7 @@ cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
 const sun = scene.children.find(o => o.isDirectionalLight);
 if (sun) { sun.castShadow = true; sun.shadow.normalBias = 0.05; sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6 }); sun.shadow.camera.updateProjectionMatrix(); }
 people.forEach(p => p.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }));
+if (q.get('ghost')) people.forEach(p => p.traverse(o => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.75; } }));
 E.speaker = q.get('talk') || '';
 // 以固定步長推進動畫，方便截圖
 const T = parseFloat(q.get('t') || '1.3');
