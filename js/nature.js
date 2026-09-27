@@ -75,7 +75,8 @@ export function loadNature(windPatch) {
         Leaves_NormalTree: leafMat(T.leaves),
         Leaves_Pine: leafMat(T.pine),
         Leaves_TwistedTree: windPatch(mk(T.bush), 0.02, true),   // 灌木（原為紅葉，已轉成綠色）
-        Rocks: new THREE.MeshLambertMaterial({ map: T.rocks, vertexColors: true }),
+        // 石頭背光面加少許天光，免得變成黑色一團（風擺幅度為 0）
+        Rocks: windPatch(new THREE.MeshLambertMaterial({ map: T.rocks, vertexColors: true }), 0, true),
       };
       for (const [name, m] of Object.entries(info.models)) {
         nature.info[name] = m;
@@ -107,7 +108,11 @@ export function natureMesh(name, { height, color } = {}) {
   const k = height ? height / (info.max[1] - info.min[1]) : 1;
   for (const p of parts) {
     let m = nature.mats[p.mat];
-    if (color) { m = m.clone(); m.color.set(color); }
+    if (color) {
+      const base = m; m = base.clone(); m.color.set(color);
+      // clone() 不會複製著色器修改，要手動帶過去
+      m.onBeforeCompile = base.onBeforeCompile; m.customProgramCacheKey = base.customProgramCacheKey;
+    }
     const mesh = new THREE.Mesh(p.geo, m);
     mesh.position.y = -info.min[1] * k; mesh.scale.setScalar(k);
     g.add(mesh);
@@ -204,4 +209,24 @@ export function makeNatureLOD(entries) {
   // 建好即按出生點更新一次（setPlayer 之前鏡頭位置未必正確，之後每 0.25 秒再更新）
   update(E.camera.position);
   return group;
+}
+
+/**
+ * 可直接取代 makeRock 的素材石頭：中心在原點、大小約 2×size，外層 Group 可照舊設定位置與縮放。
+ * 素材未載入時回傳 null（呼叫處改用 makeRock）。
+ */
+export function natureRock(size = 1, color = '#8a867b', seed = 1) {
+  if (!nature.ready) return null;
+  const name = 'Rock_Medium_' + (1 + (Math.abs(seed) % 3));
+  const info = nature.info[name];
+  const h = info.max[1] - info.min[1], w = Math.max(info.max[0] - info.min[0], info.max[2] - info.min[2]);
+  const k = (2 * size) / h;
+  // 原本的深色石色乘在素材貼圖上會太暗，所以先調亮一半
+  const tint = new THREE.Color(color).lerp(new THREE.Color('#ffffff'), 0.5);
+  const inner = natureMesh(name, { height: 2 * size, color: tint });
+  inner.position.y = -size;
+  inner.scale.set((2 * size) / (w * k), 1, (2 * size) / (w * k));
+  inner.rotation.y = (seed * 1.37) % 6.28;
+  const g = new THREE.Group(); g.add(inner);
+  return g;
 }

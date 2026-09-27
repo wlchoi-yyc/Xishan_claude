@@ -7,7 +7,7 @@ import {
   makeFootprints, pathPoints, makeRibbon, makeWater, makePerson, fbm, noise2, rng, mixHex, smoothstep, lam, textCanvas, makeStaff,
 } from '../world.js';
 import { waterize } from '../world.js';
-import { nature, natureMesh } from '../nature.js';
+import { nature, natureMesh, natureRock } from '../nature.js';
 import { makeClouds, makeMist, makeGrassField, makePinnacle, makeFarRanges } from '../scenery.js';
 import { autumnGround } from './pavilion.js';
 
@@ -101,7 +101,7 @@ function buildForest() {
     const sx = 0.7 + rr() * 0.4, sy = 1.2 + rr() * 1.3, sz = 0.7 + rr() * 0.4, rx = rr() * 0.4, ry = rr() * 6, rz = rr() * 0.4;
     if (nature.ready) {
       // 現成岩石素材：按原本大小拉高成怪石
-      const H = s * sy * 1.05, rock = natureMesh('Rock_Medium_' + (1 + i % 3), { height: H, color: i % 2 ? '#c9c2b2' : '#d8d0c0' });
+      const H = s * sy * 1.05, rock = natureMesh('Rock_Medium_' + (1 + i % 3), { height: H, color: i % 2 ? '#e6dfd0' : '#f2ebdc' });
       const info = nature.info['Rock_Medium_' + (1 + i % 3)], k = H / (info.max[1] - info.min[1]);
       rock.scale.set(s * 1.1 * sx / (3.2 * k), 1, s * 1.1 * sz / (3.2 * k));
       rock.position.set(x, forestHeight(x, z) - 0.3, z);
@@ -120,7 +120,7 @@ function buildForest() {
     const a = i / 8 * 6.28, x = ZONES.spring.x + Math.cos(a) * 7.5, z = ZONES.spring.z + Math.sin(a) * 7.5;
     const rs = 0.8 + rr() * 0.8;
     if (nature.ready) {
-      const rock = natureMesh('Rock_Medium_' + (1 + i % 3), { height: rs * 1.3, color: '#b9b6a8' });
+      const rock = natureMesh('Rock_Medium_' + (1 + i % 3), { height: rs * 1.3, color: '#dedbcf' });
       rock.position.set(x, forestHeight(x, z) - 0.15, z); rock.rotation.y = i * 1.7; scene.add(rock);
     } else {
       const rock = makeRock(rs, '#7b7a70', 60 + i);
@@ -320,7 +320,7 @@ function buildGlade() {
   const terrain = makeTerrain({ size: 140, seg: 70, heightAt: gladeHeight, colorAt: (h, s, x, z) => mixHex('#6d8a43', '#8e9a52', noise2(x * 0.15, z * 0.15, 3) * 0.5 + 0.5) });
   scene.add(terrain);
   const trees = scatter(170, 5, (x, z, r) => { const d = Math.hypot(x, z); if (d < 17) return false; if (Math.abs(x) < 3 && z > 0) return false; const t = r(); return { type: t < 0.35 ? 'pine' : t < 0.65 ? 'broad' : t < 0.82 ? 'maple' : t < 0.92 ? 'ginkgo' : 'song', s: 1 + r() * 0.8 }; }, { x0: -60, x1: 60, z0: -60, z1: 60 });
-  scene.add(makeTrees(trees, gladeHeight));
+  scene.add(makeTrees(trees, gladeHeight, { hq: true }));
   const rr = rng(3);
   for (let i = 0; i < 26; i++) {
     const a = rr() * 6.28, d = rr() * 15;
@@ -333,7 +333,7 @@ function buildGlade() {
     const b = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 2.5, 30, 8, 1, true), beamM);
     b.position.set((rr() - .5) * 20, 12, (rr() - .5) * 20); b.rotation.z = 0.25; b.rotation.x = 0.1; scene.add(b);
   }
-  const bigRock = makeRock(1.3, '#8a8778', 5); bigRock.position.set(3.5, gladeHeight(3.5, -2) + 0.5, -2); bigRock.scale.y = 0.7; scene.add(bigRock);
+  const bigRock = natureRock(1.3, '#8a8778', 5) || makeRock(1.3, '#8a8778', 5); bigRock.position.set(3.5, gladeHeight(3.5, -2) + 0.5, -2); bigRock.scale.y = 0.7; scene.add(bigRock);
   // 草地（避開地上的痕跡）
   const keep = [[-3, 2, 2.2], [3, -0.6, 1], [-5, -6, 2], [6, 5, 1.8], [-9, -13, 1.5]];
   scene.add(makeGrassField({ count: 900, area: { x0: -30, x1: 30, z0: -30, z1: 30 }, heightAt: gladeHeight, accept: (x, z) => keep.every(([kx, kz, kr]) => Math.hypot(x - kx, z - kz) > kr), seed: 15, scale: [0.4, 0.8] }));

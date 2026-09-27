@@ -7,6 +7,7 @@ import {
   mergeColored, mat, vcMat, fbm, noise2, rng, mixHex, smoothstep, lam,
 } from '../world.js';
 import { waterize } from '../world.js';
+import { natureRock } from '../nature.js';
 import { makeClouds, makeMist, makeGrassField, makePinnacle, makeFarRanges } from '../scenery.js';
 
 // ================= 第五關 =================
@@ -70,7 +71,7 @@ function buildFoot() {
   const rr = rng(33);
   for (let i = 0; i < 26; i++) {
     const side = i % 2 ? 1 : -1, x = 4 - rr() * 50, z = side * (7 + rr() * 3);
-    const rock = makeRock(1.5 + rr() * 2, '#8a8474', 200 + i); rock.position.set(x, footH(x, z) + 0.5, z); rock.scale.y = 1.4 + rr(); scene.add(rock);
+    const rs = 1.5 + rr() * 2; const rock = natureRock(rs, '#8a8474', 200 + i) || makeRock(rs, '#8a8474', 200 + i); rock.position.set(x, footH(x, z) + 0.5, z); rock.scale.y = 1.4 + rr(); scene.add(rock);
   }
   const trees = scatter(260, 71, (x, z, r) => {
     if (Math.abs(z) < 12 && x < 8 && x > -60) return false;
@@ -78,7 +79,7 @@ function buildFoot() {
     const t = r();
     return { type: t < 0.4 ? 'pine' : t < 0.6 ? 'song' : t < 0.8 ? 'broad' : 'maple', s: 1 + r() * 0.9 };
   }, { x0: -120, x1: 120, z0: -120, z1: 120 });
-  scene.add(makeTrees(trees, footH));
+  scene.add(makeTrees(trees, footH, { hq: true }));
   scene.add(makeGrassField({ count: 700, area: { x0: -45, x1: 14, z0: -8, z1: 8 }, heightAt: footH, accept: (x, z) => (x > -5 || x < -19) && Math.hypot(x - 3, z - 2) > 2.5, seed: 17, scale: [0.4, 0.8] }));
   const clouds = makeClouds({ count: 16, rMin: 250, rMax: 700, yMin: 130, yMax: 220, size: [150, 300], seed: 18 });
   scene.add(clouds);
