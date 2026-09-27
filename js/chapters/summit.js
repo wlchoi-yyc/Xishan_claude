@@ -590,11 +590,11 @@ async function epilogue(w, liu) {
   await wait(0.6);
 
   await ui.say('柳宗元', '你今天一直在找我。');
-  await ui.say('柳宗元', '現在，你找到我了嗎？');
+  await ui.say('柳宗元', '現在，你覺得自己找到我了嗎？');
   const ans = await ui.choose([
     { label: 'A. 找到了，你就在西山。', value: 'A' },
-    { label: 'B. 找到了，我知道你今天走過哪些地方。', value: 'B' },
-    { label: 'C. 好像找到了，但我現在才開始明白你為甚麼來這裏。', value: 'C' },
+    { label: 'B. 找到了，我知道你今天到過哪些地方。', value: 'B' },
+    { label: 'C. 好像找到了，但我現在才開始明白你為甚麼會來這裏。', value: 'C' },
   ], { name: '你' });
   if (ans === 'C') {
     ui.hideDialog();
@@ -605,14 +605,14 @@ async function epilogue(w, liu) {
   watch(liu, false);
   liu.userData.lookTarget = new THREE.Vector3(-2000, -100, 300);
   await wait(1.2);
-  await ui.say('柳宗元', '不過今天，我自己也像是第一次找到了一些東西。');
+  await ui.say('柳宗元', '老實說，今天我也是頭一次覺得自己找到了一些東西。');
   await ui.choose([{ label: '甚麼？' }], { name: '你' });
   watch(liu, true);
   await wait(0.8);
   await ui.say('柳宗元', '以前，我以為自己早已遊遍永州。');
   ui.hideDialog();
   await wait(1.8);
-  await ui.say('柳宗元', '今天才知道——');
+  await ui.say('柳宗元', '直到今天才知道——');
   ui.hideDialog();
 
   // 鏡頭慢慢離開，轉向西山：你和柳宗元並立山頂
@@ -639,7 +639,7 @@ async function epilogue(w, liu) {
   ui.journalAdd('心境', '從前未曾真正遊賞；真正的「遊」，從這一次西山之遊才開始。', '然後知吾嚮之未始遊，遊於是乎始');
   await wait(8);
   await ui.hideCaption();
-  await ui.twoLineCard('原來，不只是你在尋找柳宗元......', '也是柳宗元在西山，重新找到了自己。');
+  await ui.twoLineCard('原來，不只是你在尋找柳宗元......', '柳宗元也在西山，重新找到了自己。');
   await ui.caption('故為之文以志。是歲，元和四年也。', { gloss: '所以寫下這篇文章記錄這件事。這一年，是元和四年（公元 809 年）。', hold: 6 });
   ui.litText('故為之文以志');
   ui.litText('是歲，元和四年也');
