@@ -124,9 +124,49 @@ export function makeTerrain({ size = 200, seg = 100, sizeZ, segZ, cx = 0, cz = 0
     for (let k = 0; k < 3; k++) { colors[(i + k) * 3] = c.r; colors[(i + k) * 3 + 1] = c.g; colors[(i + k) * 3 + 2] = c.b; }
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  const mesh = new THREE.Mesh(geo, vcMat());
+  const mesh = new THREE.Mesh(geo, terrainMat());
   mesh.userData.terrain = true;
   return mesh;
+}
+// 地形材質：在頂點顏色之上，於畫素層面加入以「米」為單位的深淺斑駁、乾草色塊與近處泥土顆粒，
+// 令大面積地面不再是一片平均的綠色（不需任何貼圖檔）
+const TERRAIN_NOISE = `
+  varying vec3 vTerrWP;
+  float tHash(vec2 p){ p = fract(p * vec2(127.1, 311.7)); p += dot(p, p + 19.19); return fract(p.x * p.y); }
+  float tNoise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(tHash(i), tHash(i + vec2(1.0, 0.0)), u.x), mix(tHash(i + vec2(0.0, 1.0)), tHash(i + vec2(1.0, 1.0)), u.x), u.y); }
+`;
+let _terrainMat = null;
+export function terrainMat() {
+  if (_terrainMat) return _terrainMat;
+  const m = vcMat();
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'varying vec3 vTerrWP;\n' + sh.vertexShader.replace('#include <project_vertex>',
+      '#include <project_vertex>\n vTerrWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = TERRAIN_NOISE + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      {
+        vec2 p = vTerrWP.xz;
+        float dist = length(vTerrWP - cameraPosition);
+        float nearK = 1.0 - smoothstep(15.0, 90.0, dist);
+        float midK = 1.0 - smoothstep(120.0, 700.0, dist);
+        float big = tNoise(p * 0.035) * 0.65 + tNoise(p * 0.09 + 7.3) * 0.35;      // 十多米的大色塊
+        float mid = tNoise(p * vec2(0.45, 0.16) + 3.1);                               // 如筆觸般拉長的斑紋
+        float fine = tNoise(p * 2.3) * 0.6 + tNoise(p * 6.1 + 1.7) * 0.4;            // 近處泥土、草屑
+        vec3 base = diffuseColor.rgb;
+        float greenish = smoothstep(0.0, 0.08, base.g - max(base.r, base.b));
+        // 乾草／泥土色塊（只在偏綠的地面出現）
+        float dry = smoothstep(0.52, 0.78, big) * greenish;
+        base = mix(base, base * vec3(1.32, 1.1, 0.7), dry * 0.65);
+        // 較深較潤的草叢色塊
+        float lush = smoothstep(0.5, 0.2, big) * greenish;
+        base = mix(base, base * vec3(0.78, 0.92, 0.84), lush * 0.5);
+        base *= 1.0 + (mid - 0.5) * 0.32 * midK + (fine - 0.5) * 0.42 * nearK;
+        diffuseColor.rgb = base;
+      }`);
+  };
+  m.customProgramCacheKey = () => 'terrain-v1';
+  _terrainMat = m;
+  return m;
 }
 // 用於地形上色的混合
 export function mixHex(a, b, k) { return new THREE.Color(a).lerp(new THREE.Color(b), Math.min(1, Math.max(0, k))); }

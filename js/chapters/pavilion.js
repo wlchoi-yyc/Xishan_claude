@@ -3,7 +3,7 @@
 import { E, THREE, ui, audio, enter, clue, watch, until, dist2D } from './common.js';
 import { addInteractable, removeInteractable, freeze, unfreeze, wait, lookAt, moveTo, turnTo, tween, setControls, isLookingAt, lerp } from '../engine.js';
 import { baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makePavilion, makeHouse, makePerson, fbm, noise2, rng, mixHex, smoothstep, lam } from '../world.js';
-import { makeClouds, makeMist, makeGrassField, makePinnacle, terrace } from '../scenery.js';
+import { makeClouds, makeMist, makeGrassField, makePinnacle, terrace, makeFarRanges } from '../scenery.js';
 
 // 西山位置（相對法華西亭）
 export const XISHAN = { x: -900, z: -150, h: 250 };
@@ -159,6 +159,7 @@ function buildVista() {
   const mist = makeMist({ count: 26, center: [XISHAN.x + 120, XISHAN.z], rMax: 420, y: 18, yJitter: 16, size: [120, 260], opacity: 0.45, seed: 5 });
   const riverMist = makeMist({ count: 18, center: [-300, 0], rMax: 700, y: 6, size: [120, 220], opacity: 0.3, seed: 6 });
   scene.add(clouds, mist, riverMist);
+  scene.add(makeFarRanges([{ r: 2600, h: 130, y: 0, ink: '#5d7c74', k: 0.42, seed: 1 }, { r: 3200, h: 190, y: 0, ink: '#71898c', k: 0.3, seed: 2 }, { r: 3700, h: 250, y: 0, ink: '#8e9ea6', k: 0.2, seed: 3 }]));
 
   // 亭內可坐處的碰撞（柱與欄杆）
   const blockers = [];

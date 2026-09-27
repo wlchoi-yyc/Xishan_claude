@@ -3,7 +3,7 @@ import { E, THREE, ui, audio, enter, clue, watch } from './common.js';
 import { addInteractable, removeInteractable, freeze, unfreeze, wait, lookAt, moveTo, turnTo, tween, setControls, lerp, angleDiff } from '../engine.js';
 import { baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makeBoat, makePerson, makeRibbon, makeFootprints, pathPoints, fbm, noise2, rng, mixHex, smoothstep, lam } from '../world.js';
 import { xishanShape, xishanColor, addXishanPinnacles, autumnGround } from './pavilion.js';
-import { makeClouds, makeMist, makeGrassField } from '../scenery.js';
+import { makeClouds, makeMist, makeGrassField, makeFarRanges } from '../scenery.js';
 
 const RIVER_HALF = 80;
 const CREEK = [{ x: -76, z: 16 }, { x: -110, z: 14 }, { x: -140, z: 22 }, { x: -175, z: 18 }, { x: -210, z: 28 }, { x: -250, z: 24 }, { x: -300, z: 36 }, { x: -380, z: 30 }];
@@ -137,6 +137,7 @@ function buildRiver() {
   const mist = makeMist({ count: 30, center: [0, 0], rMax: 600, y: 2, yJitter: 3, size: [60, 140], opacity: 0.28, seed: 9 });
   const hillMist = makeMist({ count: 20, center: [WEST_HILL.x + 150, WEST_HILL.z], rMax: 300, y: 40, yJitter: 20, size: [120, 240], opacity: 0.4, seed: 10 });
   scene.add(clouds, mist, hillMist);
+  scene.add(makeFarRanges([{ r: 2000, h: 110, y: 0, ink: '#5d7c74', k: 0.42, seed: 1 }, { r: 2800, h: 170, y: 0, ink: '#71898c', k: 0.3, seed: 2 }, { r: 3500, h: 230, y: 0, ink: '#8e9ea6', k: 0.2, seed: 3 }]));
 
   const S = { boating: false };
   const heightAt = (x, z) => S.boating ? Math.max(terrainH(x, z), 0) + 0.45 : (Math.abs(x) < RIVER_HALF + 8 && Math.abs(z) < 2.2 && Math.abs(x) > RIVER_HALF - 12 ? 1.23 : Math.max(terrainH(x, z), 0.2));

@@ -1,5 +1,6 @@
 // 引擎：渲染、第一人稱鏡頭、移動、點擊互動、補間動畫
 import * as THREE from '../lib/three.module.js';
+import { createPost } from './post.js';
 
 export { THREE };
 
@@ -13,19 +14,24 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.18;
+// 後期處理（柔光、調色、暗角、紙紋）；網址加 ?post=0 可關閉作比較
+const post = createPost(renderer, { lowEnd: LOW_END });
+if (new URLSearchParams(location.search).get('post') === '0') post.enabled = false;
+post.setSize(window.innerWidth, window.innerHeight, renderer.getPixelRatio());
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 6000);
 camera.rotation.order = 'YXZ';
 
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
+  post.setSize(window.innerWidth, window.innerHeight, renderer.getPixelRatio());
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 });
 
 // ---------------- 狀態 ----------------
 export const E = {
-  THREE, renderer, camera,
+  THREE, renderer, camera, post,
   world: null,
   time: 0,
   player: {
@@ -569,7 +575,7 @@ function frame(now) {
   const showCross = E.input.interact && dialogEl.classList.contains('hidden');
   if (showCross !== crossShown) { crossShown = showCross; crosshairEl.style.visibility = showCross ? '' : 'hidden'; }
 
-  if (E.world) renderer.render(E.world.scene, camera);
+  if (E.world) post.render(E.world.scene, camera);
 }
 requestAnimationFrame(frame);
 

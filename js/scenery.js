@@ -152,3 +152,63 @@ export function terrace(h, step = 20, amount = 0.6) {
   const stepped = (f + smoothstep(0.3, 0.7, fr)) * step;
   return h + (stepped - h) * amount;
 }
+
+// ---------------- 遠山層疊 ----------------
+/**
+ * 山水畫式的遠山：幾重淡出的山脊剪影環繞地平線，愈遠愈淡，山腳溶入霧中。
+ * 顏色每幀取自場景霧色，所以黃昏、入夜時會自動跟隨變色。
+ * layers: [{ r: 半徑, h: 最高山峰高度, y: 山腳高度, ink: 山色, k: 濃淡 0–1, seed }]
+ */
+export function makeFarRanges(layers, { follow = true } = {}) {
+  const group = new THREE.Group();
+  layers.forEach((L, li) => {
+    const seg = 320, r = rng(L.seed ?? (li * 17 + 3));
+    const verts = [], vv = [], idx = [];
+    const base = (L.y ?? 0) - 300;
+    const ph = r() * 100;
+    for (let i = 0; i <= seg; i++) {
+      const a = i / seg * Math.PI * 2;
+      const u = a * 6 + ph;
+      // 尖峰：取絕對值的雜訊製造山脊，再乘上大尺度起伏，令山勢有主有次
+      const ridge = 1 - Math.abs(noise2(Math.cos(a) * 3 + ph, Math.sin(a) * 3, li + 5));
+      const roll = noise2(Math.cos(a) * 1.2 + ph, Math.sin(a) * 1.2, li + 9) * 0.5 + 0.5;
+      const peak = Math.pow(ridge, 2.2) * (0.35 + roll * 0.9) + noise2(u * 2.5, li, 3) * 0.06;
+      const top = (L.y ?? 0) + Math.max(0.08, peak) * L.h;
+      const x = Math.cos(a) * L.r, z = Math.sin(a) * L.r;
+      verts.push(x, top, z, x, base, z);
+      vv.push(1, 0);
+      if (i < seg) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('vtop', new THREE.Float32BufferAttribute(vv, 1));
+    geo.setIndex(idx);
+    const uniforms = { fogColor: { value: new THREE.Color('#cfd8d4') }, ink: { value: new THREE.Color(L.ink || '#6f8a86') }, k: { value: L.k ?? 0.4 }, hTop: { value: (L.y ?? 0) + L.h }, hBase: { value: L.y ?? 0 } };
+    const m = new THREE.ShaderMaterial({
+      uniforms, side: THREE.DoubleSide, fog: false, depthWrite: false,
+      vertexShader: `attribute float vtop; varying float vY; varying float vTop; void main(){ vY = position.y; vTop = vtop; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `uniform vec3 fogColor; uniform vec3 ink; uniform float k; uniform float hTop; uniform float hBase; varying float vY; varying float vTop;
+        void main(){
+          float t = clamp((vY - hBase) / max(1.0, hTop - hBase), 0.0, 1.0);
+          // 山頂較濃，向下漸漸溶入霧（留白）
+          float a = k * (0.25 + 0.75 * smoothstep(0.0, 0.75, t));
+          gl_FragColor = vec4(mix(fogColor, ink, a), 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+    });
+    const mesh = new THREE.Mesh(geo, m);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = -9 + li * 0; // 緊接天空之後
+    mesh.userData.shadowSet = true;
+    mesh.userData.layer = L;
+    mesh.onBeforeRender = (rd, scene, cam) => {
+      if (scene.fog) uniforms.fogColor.value.copy(scene.fog.color);
+      if (follow) { mesh.position.x = cam.position.x; mesh.position.z = cam.position.z; }
+    };
+    group.add(mesh);
+  });
+  // 由遠至近繪畫，近的一重蓋住遠的
+  group.children.sort((a, b) => b.userData.layer.r - a.userData.layer.r).forEach((m, i) => { m.renderOrder = -9 + i * 0.01; });
+  return group;
+}

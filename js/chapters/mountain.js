@@ -6,7 +6,7 @@ import {
   baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makeRibbon, makeFootprints, pathPoints, makeFire, makeSmoke, makeStaff,
   mergeColored, mat, vcMat, fbm, noise2, rng, mixHex, smoothstep, lam,
 } from '../world.js';
-import { makeClouds, makeMist, makeGrassField, makePinnacle } from '../scenery.js';
+import { makeClouds, makeMist, makeGrassField, makePinnacle, makeFarRanges } from '../scenery.js';
 
 // ================= 第五關 =================
 function footH(x, z) {
@@ -80,6 +80,7 @@ function buildFoot() {
   scene.add(makeGrassField({ count: 700, area: { x0: -45, x1: 14, z0: -8, z1: 8 }, heightAt: footH, accept: (x, z) => (x > -5 || x < -19) && Math.hypot(x - 3, z - 2) > 2.5, seed: 17, scale: [0.4, 0.8] }));
   const clouds = makeClouds({ count: 16, rMin: 250, rMax: 700, yMin: 130, yMax: 220, size: [150, 300], seed: 18 });
   scene.add(clouds);
+  scene.add(makeFarRanges([{ r: 900, h: 170, y: 0, ink: '#5d7c74', k: 0.42, seed: 1 }, { r: 1400, h: 240, y: 0, ink: '#71898c', k: 0.3, seed: 2 }]));
 
   // 榛莽（第一排）與茅茷（第二排）
   const bushes = [];
@@ -435,6 +436,7 @@ function buildSlope() {
   const clouds = makeClouds({ count: 24, rMin: 500, rMax: 1500, yMin: 60, yMax: 260, size: [260, 520], seed: 19 });
   const mist = makeMist({ count: 30, center: [300, 0], rMax: 700, y: -8, yJitter: 6, size: [120, 260], opacity: 0.3, seed: 20 });
   scene.add(clouds, mist);
+  scene.add(makeFarRanges([{ r: 2600, h: 160, y: -30, ink: '#5d7c74', k: 0.42, seed: 1 }, { r: 3400, h: 250, y: -30, ink: '#71898c', k: 0.3, seed: 2 }]));
   // 平台
   LEDGES.forEach((L, i) => {
     if (i === 0) return;

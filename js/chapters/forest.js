@@ -6,7 +6,7 @@ import {
   baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makeWinePot, makeCup, makeMat,
   makeFootprints, pathPoints, makeRibbon, makeWater, makePerson, fbm, noise2, rng, mixHex, smoothstep, lam, textCanvas, makeStaff,
 } from '../world.js';
-import { makeClouds, makeMist, makeGrassField, makePinnacle } from '../scenery.js';
+import { makeClouds, makeMist, makeGrassField, makePinnacle, makeFarRanges } from '../scenery.js';
 import { autumnGround } from './pavilion.js';
 
 // ---------------- 共用地形著色 ----------------
@@ -125,6 +125,7 @@ function buildForest() {
   const clouds = makeClouds({ count: 22, rMin: 300, rMax: 900, yMin: 140, yMax: 240, size: [160, 320], seed: 13 });
   const mist = makeMist({ count: 18, center: [30, 0], rMax: 110, heightAt: forestHeight, lift: 1.5, size: [25, 50], opacity: 0.22, seed: 14 });
   scene.add(clouds, mist);
+  scene.add(makeFarRanges([{ r: 900, h: 190, y: 0, ink: '#5d7c74', k: 0.42, seed: 1 }, { r: 1300, h: 270, y: 0, ink: '#71898c', k: 0.3, seed: 2 }, { r: 1800, h: 340, y: 0, ink: '#8e9ea6', k: 0.2, seed: 3 }]));
 
   const world = {
     scene, animated: [clouds, mist],
