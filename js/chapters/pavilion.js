@@ -3,6 +3,7 @@
 import { E, THREE, ui, audio, enter, clue, watch, until, dist2D } from './common.js';
 import { addInteractable, removeInteractable, freeze, unfreeze, wait, lookAt, moveTo, turnTo, tween, setControls, isLookingAt, lerp } from '../engine.js';
 import { baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makePavilion, makeHouse, makePerson, fbm, noise2, rng, mixHex, smoothstep, lam } from '../world.js';
+import { waterize } from '../world.js';
 import { makeClouds, makeMist, makeGrassField, makePinnacle, terrace, makeFarRanges } from '../scenery.js';
 
 // 西山位置（相對法華西亭）
@@ -108,7 +109,7 @@ function buildVista() {
   scene.add(terrain);
   // 湘江
   const river = new THREE.Mesh(new THREE.PlaneGeometry(200, 2800), new THREE.MeshPhongMaterial({ color: '#8fb4c2', shininess: 80, transparent: true, opacity: 0.92 }));
-  river.rotation.x = -Math.PI / 2; river.position.set(-300, -1.5, 0); scene.add(river);
+  river.rotation.x = -Math.PI / 2; river.position.set(-300, -1.5, 0); waterize(river, { scale: 0.18, strength: 0.14, flow: [0, 0.5] }); scene.add(river);
 
   // 亭
   const pav = makePavilion();

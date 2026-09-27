@@ -1,6 +1,6 @@
 // 山水點景：雲、霧、草地、石峰、斷崖台地
 import { THREE } from './engine.js';
-import { rng, noise2, mergeColored, mat, vcMat, smoothstep } from './world.js';
+import { rng, noise2, mergeColored, mat, vcMat, smoothstep, windMat } from './world.js';
 
 // ---------------- 貼圖 ----------------
 let _cloudTex = null, _mistTex = null;
@@ -101,7 +101,7 @@ export function makeGrassField({ count = 1500, area, heightAt, accept = () => tr
     if (!accept(x, z)) continue;
     pts.push([x, z]);
   }
-  const mesh = new THREE.InstancedMesh(grassGeo(), vcMat(), pts.length);
+  const mesh = new THREE.InstancedMesh(grassGeo(), windMat(0.12), pts.length);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color();
   pts.forEach(([x, z], i) => {
     const k = scale[0] + r() * (scale[1] - scale[0]);

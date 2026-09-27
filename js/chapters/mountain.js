@@ -6,6 +6,7 @@ import {
   baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makeRibbon, makeFootprints, pathPoints, makeFire, makeSmoke, makeStaff,
   mergeColored, mat, vcMat, fbm, noise2, rng, mixHex, smoothstep, lam,
 } from '../world.js';
+import { waterize } from '../world.js';
 import { makeClouds, makeMist, makeGrassField, makePinnacle, makeFarRanges } from '../scenery.js';
 
 // ================= 第五關 =================
@@ -61,9 +62,10 @@ function buildFoot() {
   scene.add(terrain);
   // 染溪源頭
   const creek = makeRibbon(pathPoints([{ x: 3, z: 2 }, { x: 14, z: 5 }, { x: 30, z: 2 }, { x: 60, z: 8 }, { x: 100, z: 4 }], 2), 2.4, footH, { color: '#9cc0c6', lift: 0.15 });
+  waterize(creek, { scale: 0.8, strength: 0.3, edge: true, flow: [0.6, 0.1] });
   scene.add(creek);
   const pool = new THREE.Mesh(new THREE.CircleGeometry(2.2, 16), new THREE.MeshPhongMaterial({ color: '#7fa9b2', shininess: 90 }));
-  pool.rotation.x = -Math.PI / 2; pool.position.set(3, footH(3, 2) + 0.12, 2); scene.add(pool);
+  pool.rotation.x = -Math.PI / 2; pool.position.set(3, footH(3, 2) + 0.12, 2); waterize(pool, { scale: 0.6, strength: 0.18 }); scene.add(pool);
   // 山溝兩側的石壁
   const rr = rng(33);
   for (let i = 0; i < 26; i++) {
@@ -421,9 +423,9 @@ function buildSlope() {
   const far = makeTerrain({ size: 2600, seg: 150, cx: 900, heightAt: (x, z) => (x < 110 && Math.abs(z) < 110 ? slopeH(x, z) - 30 : slopeH(x, z) - 0.3), colorAt: slopeColor }); scene.add(far);
   // 山下的染溪與遠處的湘江
   const creekPts = pathPoints([{ x: 8, z: 0 }, { x: 40, z: 6 }, { x: 90, z: -4 }, { x: 150, z: 10 }, { x: 230, z: 4 }, { x: 330, z: 16 }, { x: 420, z: 8 }], 3);
-  const creek = makeRibbon(creekPts, 3, (x, z) => slopeH(x, z) - 0.3, { color: '#a9ccd2', lift: 0.5 }); scene.add(creek);
+  const creek = makeRibbon(creekPts, 3, (x, z) => slopeH(x, z) - 0.3, { color: '#a9ccd2', lift: 0.5 }); waterize(creek, { scale: 0.6, strength: 0.3, edge: true, flow: [0.7, 0] }); scene.add(creek);
   const river = new THREE.Mesh(new THREE.PlaneGeometry(160, 2600), new THREE.MeshPhongMaterial({ color: '#9fc2cc', shininess: 80 }));
-  river.rotation.x = -Math.PI / 2; river.position.set(500, -19.5, 0); scene.add(river);
+  river.rotation.x = -Math.PI / 2; river.position.set(500, -19.5, 0); waterize(river, { scale: 0.18, strength: 0.14 }); scene.add(river);
   const trees = scatter(900, 17, (x, z, r) => {
     if (Math.abs(z) < 8 && x < 6 && x > -26) return false;
     if (x > 440 && x < 580) return false;

@@ -2,6 +2,7 @@
 import { E, THREE, ui, audio, enter, clue, watch } from './common.js';
 import { addInteractable, removeInteractable, freeze, unfreeze, wait, lookAt, moveTo, turnTo, tween, setControls, lerp, angleDiff } from '../engine.js';
 import { baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makeBoat, makePerson, makeRibbon, makeFootprints, pathPoints, fbm, noise2, rng, mixHex, smoothstep, lam } from '../world.js';
+import { waterize } from '../world.js';
 import { xishanShape, xishanColor, addXishanPinnacles, autumnGround } from './pavilion.js';
 import { makeClouds, makeMist, makeGrassField, makeFarRanges } from '../scenery.js';
 
@@ -51,10 +52,11 @@ function buildRiver() {
   const terrain = makeTerrain({ size: 1800, sizeZ: 1400, seg: 180, segZ: 140, heightAt: terrainH, colorAt });
   scene.add(terrain);
   const water = new THREE.Mesh(new THREE.PlaneGeometry(RIVER_HALF * 2 + 20, 1400, 20, 60), new THREE.MeshPhongMaterial({ color: '#86aebb', shininess: 90, transparent: true, opacity: 0.9, flatShading: true }));
-  water.rotation.x = -Math.PI / 2; water.position.y = 0; scene.add(water);
+  water.rotation.x = -Math.PI / 2; water.position.y = 0; waterize(water, { scale: 0.18, strength: 0.14, flow: [0, 0.45] }); scene.add(water);
   const wpos = water.geometry.attributes.position; const wbase = wpos.array.slice();
   // 染溪
   const creek = makeRibbon(pathPoints(CREEK, 2), 3.4, terrainH, { color: '#9cc0c6', lift: 0.6, seg: 2 });
+  waterize(creek, { scale: 0.7, strength: 0.3, edge: true, flow: [-0.6, 0.2] });
   scene.add(creek);
 
   // 碼頭（東岸）

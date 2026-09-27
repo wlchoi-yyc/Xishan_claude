@@ -8,6 +8,7 @@ import {
   baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makeRibbon, makeFootprints, pathPoints, makePerson, makeWinePot, makeCup, makeStaff,
   fbm, noise2, rng, mixHex, smoothstep, lam,
 } from '../world.js';
+import { waterize } from '../world.js';
 import { RECON } from '../data.js';
 import { makeClouds, makeMist, makeGrassField, makePinnacle, terrace } from '../scenery.js';
 import { xishanColor, autumnGround } from './pavilion.js';
@@ -31,6 +32,8 @@ const RIVERS = [
   [{ x: 700, z: 2600 }, { x: 800, z: 1700 }, { x: 550, z: 1100 }, { x: 750, z: 600 }, { x: 600, z: 300 }, { x: 900, z: -100 }, { x: 700, z: -500 }, { x: 900, z: -1200 }, { x: 700, z: -2600 }],
   [{ x: -2600, z: 900 }, { x: -1800, z: 700 }, { x: -1200, z: 1000 }, { x: -600, z: 700 }, { x: -300, z: 1100 }, { x: 200, z: 900 }, { x: 600, z: 1100 }],
 ];
+// 河道用平滑曲線（向心 Catmull-Rom），蜿蜒而不是一段段直線；地形的河谷也沿同一條曲線挖
+const RIVERS_SMOOTH = RIVERS.map(rv => new THREE.CatmullRomCurve3(rv.map(p => new THREE.Vector3(p.x, 0, p.z)), false, 'centripetal').getPoints(rv.length * 10).map(v => ({ x: v.x, z: v.z })));
 function distToPolyline(x, z, pts) {
   let best = 1e9;
   for (let i = 0; i < pts.length - 1; i++) {
@@ -62,7 +65,7 @@ function summitH(x, z) {
   if (r > 300) {
     for (const b of lowBumps) { const dx = x - b.x, dz = z - b.z, d2 = dx * dx + dz * dz; if (d2 < 9 * b.s * b.s) h += b.h * Math.exp(-d2 / (2 * b.s * b.s)); }
     h += fbm(x * 0.002, z * 0.002, 4, 7) * 30;
-    for (const rv of RIVERS) { const d = distToPolyline(x, z, rv); if (d < 90) h = lerp(h, -275, 1 - smoothstep(20, 90, d)); }
+    for (const rv of RIVERS_SMOOTH) { const d = distToPolyline(x, z, rv); if (d < 90) h = lerp(h, -275, 1 - smoothstep(20, 90, d)); }
     // 天邊的群山
     h += smoothstep(2000, 2900, r) * (60 + fbm(x * 0.003, z * 0.003, 3, 11) * 80);
   }
@@ -99,13 +102,16 @@ function buildSummit() {
   scene.add(far);
   // 白水
   const riverMats = [];
-  for (const rv of RIVERS) {
-    const pts = pathPoints(rv, 25);
-    const m = makeRibbon(pts, 24, () => -272, { color: '#e3eef0', lift: 0, opacity: 1 });
+  RIVERS_SMOOTH.forEach((rv, ri) => {
+    const pts = pathPoints(rv, 20);
+    // 河面有寬有窄
+    const width = (t) => 24 * (0.8 + 0.35 * Math.sin(t * 23 + ri * 2.1) * Math.sin(t * 7.3 + ri));
+    const m = makeRibbon(pts, width, () => -272, { color: '#e3eef0', lift: 0, opacity: 1, seg: 2 });
     m.material = new THREE.MeshPhongMaterial({ color: '#cfe0e6', emissive: '#6f8a90', emissiveIntensity: 0.3, shininess: 140, specular: 0xffffff, side: THREE.DoubleSide });
+    waterize(m, { scale: 0.08, strength: 0.5, reflect: 1.0, glint: 1.6, edge: true, flow: [0.3, 0.2] });
     riverMats.push(m.material);
     scene.add(m);
-  }
+  });
   // 山頂的古松與石
   const trees = [
     { type: 'song', x: -9.5, z: -6, s: 1.25, rot: 2.6, tilt: 0.12 },

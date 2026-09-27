@@ -44,6 +44,7 @@ export const E = {
   shake: 0,
   tool: null,            // 工具模式（斧頭、火把）
   onUpdate: [],          // 其他每幀回調
+  preRender: [],         // 每幀渲染前（不隨場景清除；例如水面的天色）
   persons: new Set(),    // 需要處理「看鏡頭」的人物
   interactables: [],
   walkLock: false,
@@ -575,7 +576,7 @@ function frame(now) {
   const showCross = E.input.interact && dialogEl.classList.contains('hidden');
   if (showCross !== crossShown) { crossShown = showCross; crosshairEl.style.visibility = showCross ? '' : 'hidden'; }
 
-  if (E.world) post.render(E.world.scene, camera);
+  if (E.world) { for (const fn of E.preRender) fn(E.world.scene, E.time); post.render(E.world.scene, camera); }
 }
 requestAnimationFrame(frame);
 

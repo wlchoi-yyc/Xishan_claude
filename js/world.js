@@ -175,21 +175,91 @@ export function mixHex(a, b, k) { return new THREE.Color(a).lerp(new THREE.Color
 export function makeWater(w, h, { color = '#6f9fb0', opacity = 0.85, y = 0 } = {}) {
   const geo = new THREE.PlaneGeometry(w, h, Math.max(1, Math.round(w / 6)), Math.max(1, Math.round(h / 6)));
   geo.rotateX(-Math.PI / 2);
-  const m = new THREE.MeshPhongMaterial({ color, transparent: opacity < 1, opacity, shininess: 80, specular: 0x99aabb, flatShading: true });
+  const m = new THREE.MeshPhongMaterial({ color, transparent: opacity < 1, opacity, shininess: 80, specular: 0x99aabb });
   const mesh = new THREE.Mesh(geo, m);
   mesh.position.y = y;
-  const base = geo.attributes.position.array.slice();
-  mesh.userData.animate = (t) => {
-    const a = geo.attributes.position.array;
-    for (let i = 0; i < a.length; i += 3) a[i + 1] = base[i + 1] + Math.sin(base[i] * 0.3 + t * 1.3) * 0.05 + Math.cos(base[i + 2] * 0.25 + t) * 0.05;
-    geo.attributes.position.needsUpdate = true;
-    geo.computeVertexNormals();
+  waterize(mesh);
+  // 水波改由著色器計算（以前每幀在 CPU 重算頂點，較慢）
+  mesh.userData.animate = () => {};
+  return mesh;
+}
+// 水面著色：流動的水波法線、按角度反射天色（菲涅耳）、太陽閃光、溪流兩岸柔和淡出。
+// 天空顏色每幀取自場景的天空，所以黃昏、入夜時倒影會跟着變。
+const WATER_U = {
+  wTime: { value: 0 }, wSkyTop: { value: new THREE.Color('#6f9fc8') }, wSkyHor: { value: new THREE.Color('#dfe6e3') },
+  wSunDir: { value: new THREE.Vector3(0.3, 0.4, -1).normalize() }, wSunCol: { value: new THREE.Color('#fff2d0') },
+};
+E.preRender.push((scene, t) => {
+  WATER_U.wTime.value = t;
+  const sky = scene.userData.sky;
+  if (sky) {
+    const u = sky.uniforms, dk = u.dark.value, night = new THREE.Color(0.015, 0.02, 0.04);
+    WATER_U.wSkyTop.value.copy(u.top.value).lerp(night, dk);
+    WATER_U.wSkyHor.value.copy(u.horizon.value).lerp(night, dk);
+    WATER_U.wSunDir.value.copy(u.sunDir.value);
+    WATER_U.wSunCol.value.copy(u.sunColor.value).multiplyScalar(u.sunStrength.value * (1 - dk));
+  } else if (scene.fog) {
+    WATER_U.wSkyTop.value.copy(scene.fog.color); WATER_U.wSkyHor.value.copy(scene.fog.color); WATER_U.wSunCol.value.setRGB(0, 0, 0);
+  }
+});
+/**
+ * 把水面物件（Phong 材質）變成會流動、會反光的水
+ * opts: scale 波紋密度（每米）, strength 波紋起伏, reflect 反射量, glint 太陽閃光, edge 溪流兩岸淡出（需要 makeRibbon 的幾何）, flow 流向
+ */
+export function waterize(mesh, { scale = 0.35, strength = 0.35, reflect = 0.85, glint = 1.0, edge = false, flow = [0.4, 0.2] } = {}) {
+  const m = mesh.material;
+  m.flatShading = false;
+  if (edge) m.transparent = true;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, WATER_U, {
+      wScale: { value: scale }, wStrength: { value: strength }, wReflect: { value: reflect }, wGlint: { value: glint },
+      wEdge: { value: edge ? 1 : 0 }, wFlow: { value: new THREE.Vector2(...flow) },
+    });
+    sh.vertexShader = 'attribute float across;\nvarying float vAcross;\nvarying vec3 vWaterWP;\n' + sh.vertexShader.replace('#include <project_vertex>',
+      '#include <project_vertex>\n vWaterWP = (modelMatrix * vec4(transformed, 1.0)).xyz; vAcross = across;');
+    sh.fragmentShader = `
+      varying vec3 vWaterWP; varying float vAcross;
+      uniform float wTime, wScale, wStrength, wReflect, wGlint, wEdge; uniform vec2 wFlow;
+      uniform vec3 wSkyTop, wSkyHor, wSunDir, wSunCol;
+      float wHash(vec2 p){ p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }
+      float wNoise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(mix(wHash(i), wHash(i + vec2(1.0, 0.0)), u.x), mix(wHash(i + vec2(0.0, 1.0)), wHash(i + vec2(1.0, 1.0)), u.x), u.y); }
+      float wHeight(vec2 q){
+        vec2 fl = wFlow * wTime;
+        return wNoise(q + fl) * 0.5 + wNoise(q * 2.1 - fl * 1.3 + 5.2) * 0.3 + wNoise(q * 4.3 + vec2(fl.y, -fl.x) * 1.7 + 9.1) * 0.2
+             + sin(dot(q, vec2(0.8, 0.6)) * 2.0 + wTime * 1.4) * 0.08;
+      }
+      vec3 wSky(vec3 d){ float h = max(d.y, 0.0); return mix(wSkyHor, wSkyTop, pow(smoothstep(0.0, 0.55, h), 0.8)); }
+    ` + sh.fragmentShader
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        float wDist = length(vWaterWP - cameraPosition);
+        float wFade = 1.0 - smoothstep(25.0, 260.0, wDist);
+        vec2 wq = vWaterWP.xz * wScale; float we = 0.08;
+        float wh0 = wHeight(wq);
+        vec2 wg = vec2(wHeight(wq + vec2(we, 0.0)) - wh0, wHeight(wq + vec2(0.0, we)) - wh0) / we;
+        vec3 wN = normalize(vec3(-wg.x * wStrength * wFade, 1.0, -wg.y * wStrength * wFade));
+        normal = normalize((viewMatrix * vec4(wN, 0.0)).xyz);`)
+      .replace('#include <opaque_fragment>', `
+        {
+          vec3 V = normalize(cameraPosition - vWaterWP);
+          vec3 R = reflect(-V, wN); R.y = abs(R.y);
+          float fres = 0.04 + 0.96 * pow(1.0 - max(dot(wN, V), 0.0), 5.0);
+          fres = clamp(fres * wReflect, 0.0, 0.85);
+          outgoingLight = mix(outgoingLight, wSky(R), fres);
+          float sp = pow(max(dot(R, normalize(wSunDir)), 0.0), 350.0);
+          outgoingLight += wSunCol * sp * 4.0 * wGlint;
+          diffuseColor.a = mix(diffuseColor.a, 1.0, fres * 0.8);
+          if (wEdge > 0.5) diffuseColor.a *= smoothstep(0.5, 0.28, abs(vAcross));
+        }
+        #include <opaque_fragment>`);
   };
+  m.customProgramCacheKey = () => 'water-v1';
+  m.needsUpdate = true;
   return mesh;
 }
 // 沿路徑的溪流帶
 export function makeRibbon(points, width, heightFn, { color = '#8fb8c4', opacity = 0.9, lift = 0.05, seg = 1 } = {}) {
-  const verts = [], idx = [];
+  const verts = [], idx = [], across = [];
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
     const q = points[Math.min(points.length - 1, i + 1)], r = points[Math.max(0, i - 1)];
@@ -200,6 +270,7 @@ export function makeRibbon(points, width, heightFn, { color = '#8fb8c4', opacity
       const k = s / seg - 0.5;
       const x = p.x + nx * w * k, z = p.z + nz * w * k;
       verts.push(x, (p.y ?? heightFn(x, z)) + lift, z);
+      across.push(k);
     }
   }
   const row = seg + 1;
@@ -209,6 +280,7 @@ export function makeRibbon(points, width, heightFn, { color = '#8fb8c4', opacity
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.setAttribute('across', new THREE.Float32BufferAttribute(across, 1));
   geo.setIndex(idx);
   geo.computeVertexNormals();
   const m = new THREE.MeshPhongMaterial({ color, transparent: opacity < 1, opacity, shininess: 90, specular: 0xaabbcc, side: THREE.DoubleSide, flatShading: true });
@@ -247,14 +319,14 @@ function treeGeometry(type) {
     // 杉松：層層下垂的枝葉
     trunk(parts, [[0, 0, 0], [0.05, 2.5, 0], [0, 5.2, 0.05]], 0.22, 0.06, '#5b4331');
     const tiers = [[1.9, 1.3, 1.7], [1.6, 1.2, 2.5], [1.3, 1.1, 3.3], [1.0, 1.0, 4.1], [0.65, 1.0, 4.9]];
-    tiers.forEach(([r, h, y], i) => parts.push({ geo: new THREE.ConeGeometry(r, h, 8), color: i % 2 ? '#2e5a3f' : '#35674a', matrix: mat(Math.sin(i * 2.1) * 0.08, y, Math.cos(i * 1.7) * 0.08, 0, i * 0.4, 0, 1, 1, 1) }));
+    tiers.forEach(([r, h, y], i) => parts.push({ geo: new THREE.ConeGeometry(r, h, 8), color: i % 2 ? '#365f45' : '#3f6e50', matrix: mat(Math.sin(i * 2.1) * 0.08, y, Math.cos(i * 1.7) * 0.08, 0, i * 0.4, 0, 1, 1, 1) }));
   } else if (type === 'song') {
     // 中國山水畫的松：歪斜的樹幹，扁平的雲狀枝葉
     trunk(parts, [[0, 0, 0], [0.35, 1.2, 0.1], [0.1, 2.4, -0.1], [0.6, 3.4, 0.15], [0.3, 4.3, 0]], 0.22, 0.08, '#6b4b36');
     trunk(parts, [[0.2, 2.2, 0], [-0.9, 2.8, 0.2], [-1.6, 3.0, 0.1]], 0.1, 0.04, '#6b4b36');
     trunk(parts, [[0.5, 3.3, 0.1], [1.5, 3.7, -0.3]], 0.08, 0.04, '#6b4b36');
     const pads = [[-1.6, 3.1, 0.1, 1.1], [1.6, 3.8, -0.3, 1.0], [0.3, 4.5, 0, 1.3], [-0.4, 3.9, 0.6, 0.8]];
-    pads.forEach(([x, y, z, r], i) => parts.push({ geo: blob(r, 40 + i, 1, 0.38), color: i % 2 ? '#3b6443' : '#47724c', matrix: mat(x, y, z) }));
+    pads.forEach(([x, y, z, r], i) => parts.push({ geo: blob(r, 40 + i, 1, 0.38), color: i % 2 ? '#476f4c' : '#56815a', matrix: mat(x, y, z) }));
   } else if (type === 'broad') {
     trunk(parts, [[0, 0, 0], [0.1, 1.6, 0], [-0.1, 2.8, 0.1]], 0.24, 0.12, '#5e4636');
     trunk(parts, [[0.05, 1.8, 0], [0.8, 2.8, 0.3]], 0.1, 0.06, '#5e4636');
@@ -297,6 +369,35 @@ function treeGeometry(type) {
   treeGeoCache[type] = g;
   return g;
 }
+// 植物材質：枝葉隨風輕擺（愈高擺得愈多，每棵相位不同），並給背光的葉底一點透光，免得變成黑色一團
+const _windMats = {};
+export function windMat(amp = 0.004) {
+  const key = String(amp);
+  if (_windMats[key]) return _windMats[key];
+  const m = vcMat();
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.wTime = WATER_U.wTime;
+    sh.uniforms.windAmp = { value: amp };
+    sh.vertexShader = 'uniform float wTime;\nuniform float windAmp;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      {
+        #ifdef USE_INSTANCING
+          vec3 wip = instanceMatrix[3].xyz;
+        #else
+          vec3 wip = modelMatrix[3].xyz;
+        #endif
+        float wph = wip.x * 0.071 + wip.z * 0.053;
+        float wsw = sin(wTime * 1.25 + wph) * 0.65 + sin(wTime * 2.9 + wph * 1.7) * 0.25 + sin(wTime * 0.4 + wph * 0.3) * 0.35;
+        float wh = max(transformed.y, 0.0);
+        transformed.x += wsw * windAmp * wh * wh;
+        transformed.z += wsw * 0.45 * windAmp * wh * wh;
+      }`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>',
+      'outgoingLight = max(outgoingLight, diffuseColor.rgb * 0.3);\n#include <opaque_fragment>');
+  };
+  m.customProgramCacheKey = () => 'wind-' + key;
+  _windMats[key] = m;
+  return m;
+}
 /** 散佈樹木：items [{x,z,s,rot,type}] */
 export function makeTrees(items, heightAt, { tint = true } = {}) {
   const group = new THREE.Group();
@@ -306,7 +407,8 @@ export function makeTrees(items, heightAt, { tint = true } = {}) {
   const c = new THREE.Color();
   for (const type in byType) {
     const list = byType[type];
-    const mesh = new THREE.InstancedMesh(treeGeometry(type), vcMat(), list.length);
+    const sway = { bamboo: 0.007, reed: 0.06, bush: 0.012 }[type] ?? 0.0035;
+    const mesh = new THREE.InstancedMesh(treeGeometry(type), windMat(sway), list.length);
     list.forEach((it, i) => {
       q.setFromEuler(new THREE.Euler(it.tilt ?? 0, it.rot ?? 0, 0));
       s.set(it.s, it.s * (it.sy ?? 1), it.s);
@@ -360,7 +462,7 @@ export function makeGrassPatch(n = 12, radius = 0.8, { color = '#8c9a55', height
     const ry = pressed ? 0.5 : r() * 6;
     parts.push({ geo: new THREE.ConeGeometry(0.06, h, 3), color: new THREE.Color(color).offsetHSL((r() - .5) * 0.04, 0, (r() - .5) * 0.1), matrix: mat(Math.cos(a) * d, pressed ? 0.05 : h / 2, Math.sin(a) * d, tilt, ry, (r() - .5) * 0.3) });
   }
-  return new THREE.Mesh(mergeColored(parts), vcMat());
+  return new THREE.Mesh(mergeColored(parts), pressed ? vcMat() : windMat(0.1));
 }
 
 // ---------------- 文字貼圖 ----------------
@@ -591,5 +693,6 @@ export function baseScene({ fog = '#cfd8d4', fogNear = 30, fogFar = 400, sky = {
   const d = new THREE.DirectionalLight(sun[0], sun[1]); d.position.copy(sd).multiplyScalar(200); scene.add(d);
   d.userData.follow = true; d.userData.dir = sd.clone();
   const s = makeSky(scene, Object.assign({ horizon: fog }, sky));
+  scene.userData.sky = s;
   return { scene, hemi: h, sun: d, sky: s };
 }

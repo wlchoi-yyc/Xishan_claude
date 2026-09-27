@@ -6,6 +6,7 @@ import {
   baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makeWinePot, makeCup, makeMat,
   makeFootprints, pathPoints, makeRibbon, makeWater, makePerson, fbm, noise2, rng, mixHex, smoothstep, lam, textCanvas, makeStaff,
 } from '../world.js';
+import { waterize } from '../world.js';
 import { makeClouds, makeMist, makeGrassField, makePinnacle, makeFarRanges } from '../scenery.js';
 import { autumnGround } from './pavilion.js';
 
@@ -66,10 +67,12 @@ function buildForest() {
   // 溪流
   const creekPts = pathPoints(CREEK, 2).map(p => ({ x: p.x, z: p.z }));
   const creek = makeRibbon(creekPts, 3.2, (x, z) => forestHeight(x, z), { color: '#7fa9b4', lift: 0.55, seg: 2 });
+  waterize(creek, { scale: 0.7, strength: 0.3, edge: true, flow: [0.5, -0.6] });
   scene.add(creek);
   // 幽泉水面
   const pool = new THREE.Mesh(new THREE.CircleGeometry(7.5, 24), new THREE.MeshPhongMaterial({ color: '#4f7f86', shininess: 90, transparent: true, opacity: 0.9 }));
   pool.rotation.x = -Math.PI / 2; pool.position.set(ZONES.spring.x, forestHeight(ZONES.spring.x, ZONES.spring.z) + 0.9, ZONES.spring.z);
+  waterize(pool, { scale: 0.5, strength: 0.18, glint: 0.6 });
   scene.add(pool);
 
   // 樹木
