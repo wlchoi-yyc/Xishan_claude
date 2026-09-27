@@ -27,6 +27,22 @@ ui.initButtons({
   onHint: (h) => ui.toast(h || '四處看看，點擊發光的標記。'),
 });
 
+// 回到首頁：先確認，再重新載入到標題畫面，並展開「教師：章節選擇」
+document.getElementById('btnHome').addEventListener('click', async () => {
+  audio.click();
+  const go = await new Promise(res => {
+    ui.modal(`<h2><span class="seal">首頁</span>回到首頁？</h2>
+      <p class="lead">回到標題畫面後，可在「教師：章節選擇」直接跳到任何一關。<br>目前這一關的進度不會保存。</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="primary" id="homeYes">回到首頁</button>
+        <button class="primary" id="homeNo" style="background:#3d5f58">繼續遊戲</button>
+      </div>`).then(() => res(false));
+    document.getElementById('homeYes').addEventListener('click', () => { ui.closeModal(); res(true); });
+    document.getElementById('homeNo').addEventListener('click', () => { ui.closeModal(); res(false); });
+  });
+  if (go) location.href = location.pathname + '?menu=1';
+});
+
 async function start(from = 0) {
   audio.init();
   const title = document.getElementById('title');
@@ -50,6 +66,12 @@ CHAPTERS.forEach((c, i) => {
 
 // 網址參數 ?ch=N 直接跳到某一關（方便教師示範）
 const q = new URLSearchParams(location.search);
+// ?menu=1：由遊戲中按「首頁」回來，自動展開教師章節選擇
+if (q.has('menu')) {
+  const menu = document.getElementById('teacherMenu');
+  menu.open = true;
+  setTimeout(() => menu.scrollIntoView({ block: 'center' }), 300);
+}
 // ?speed=N：僅供自動測試加速
 if (q.has('speed')) window.__speed = Math.max(1, Math.min(20, parseFloat(q.get('speed')) || 1));
 if (q.has('ch')) {
