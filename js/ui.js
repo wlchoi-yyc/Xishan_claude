@@ -124,6 +124,27 @@ export async function chapterCard(num, name, sub, { small = false } = {}) {
   await sleep(1200);
   el.classList.add('hidden');
 }
+/** 兩句並排於畫面中央（同一字號）：先出上句，再淡入下句，一同停留後一同淡出 */
+export async function twoLineCard(a, b, { gap = 1.8, hold = 7 } = {}) {
+  const el = $('chapterCard');
+  const name = el.querySelector('.ccName');
+  el.querySelector('.ccNum').textContent = '';
+  el.querySelector('.ccSub').textContent = '';
+  name.classList.add('small');
+  name.innerHTML = '';
+  const l1 = document.createElement('div'); l1.textContent = a;
+  const l2 = document.createElement('div'); l2.textContent = b;
+  l2.style.cssText = 'opacity:0;transition:opacity 1.2s ease;margin-top:.6em';
+  name.append(l1, l2);
+  el.classList.remove('hidden'); void el.offsetWidth; el.classList.add('show');
+  await sleep(gap * 1000);
+  l2.style.opacity = '1';
+  await sleep(hold * 1000);
+  el.classList.remove('show');
+  await sleep(1200);
+  el.classList.add('hidden');
+  name.classList.remove('small');
+}
 let hintText = '';
 export function objective(text, hint = '') {
   const el = $('objective');
