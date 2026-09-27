@@ -429,14 +429,15 @@ export async function chapter2() {
   ui.whisper('披草而坐', { hold: 2.4 });
   await wait(2.2);
   // 喝酒
-  const cupPot = makeWinePot('#7a8a70'); cupPot.scale.setScalar(0.9);
-  liu.userData.armR.add(cupPot); cupPot.position.set(0, -0.7, 0.05);
-  liu.userData.customArms = true;
-  await tween(1, k => { liu.userData.armR.rotation.x = -0.7 - k * 1.6; });
+  // 右手握着小酒壺的頸部，舉到嘴邊仰頭而飲
+  const cupPot = makeWinePot('#7a8a70'); cupPot.scale.setScalar(0.5);
+  liu.userData.holdCup(cupPot, { lift: -0.13, rim: 0.08 });
+  await tween(0.8, k => liu.userData.drinkPose(k));
+  await tween(0.9, k => liu.userData.drinkPose(1 + k));
   ui.whisper('傾壺而醉', { hold: 2.6 });
-  await tween(1.6, k => { liu.userData.armR.rotation.x = -2.3 + Math.sin(k * Math.PI) * 0.3; group.forEach(p => { p.userData.upper.rotation.z = Math.sin(k * 8) * 0.08; }); });
-  await tween(0.8, k => { liu.userData.armR.rotation.x = lerp(-2.3, -0.7, k); });
-  liu.userData.armR.remove(cupPot);
+  await tween(1.6, k => { liu.userData.drinkPose(2 - Math.sin(k * Math.PI) * 0.25); group.forEach(p => { p.userData.upper.rotation.z = Math.sin(k * 8) * 0.08; }); });
+  await tween(0.9, k => liu.userData.drinkPose(2 - 2 * k));
+  liu.userData.releaseCup();
   // 醉臥
   await tween(1, k => group.forEach(p => { p.userData.upper.rotation.z = Math.sin(k * 6) * 0.12; }));
   const beds = [{ x: -0.4, z: 1.2, ry: 1.6 }, { x: 1.6, z: 1.2, ry: -1.6 }, { x: -2.4, z: 3.6, ry: 2.8 }];

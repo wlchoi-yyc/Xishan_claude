@@ -218,9 +218,9 @@ const clothTone = (f, k = 0.3, micro = 0.04) => (a, y, d) => {
 // ---------------- 預設造型 ----------------
 const PRESETS = {
   // 柳宗元：淡青灰交領長袍、黑幞頭、三綹長鬚
-  liu: { outfit: 'robe', robe: '#b7c3bd', inner: '#efe8d6', trim: '#5f7069', belt: '#3a3029', cap: 'futou', beard: 'long', hair: '#15130f', skin: '#dcae8a', height: 1, face: 'long' },
-  friend1: { outfit: 'robe', robe: '#9a8466', inner: '#ece3cf', trim: '#5e4b36', belt: '#3a3029', cap: 'futou', beard: 'short', hair: '#15130f', skin: '#d8a985', height: 0.98, face: 'round' },
-  friend2: { outfit: 'robe', robe: '#6f8190', inner: '#e8e3d6', trim: '#3f4d58', belt: '#2d2a26', cap: 'kerchief', capColor: '#2c3a3a', beard: 'long', hair: '#1b1917', skin: '#dcae88', height: 1.01, face: 'long' },
+  liu: { outfit: 'robe', robe: '#b7c3bd', inner: '#efe8d6', trim: '#5f7069', belt: '#3a3029', cap: 'futou', beard: 'long', hair: '#15130f', skin: '#dcb596', height: 1.02, face: 'scholar', age: 0.25 },
+  friend1: { outfit: 'robe', robe: '#9a8466', inner: '#ece3cf', trim: '#5e4b36', belt: '#3a3029', cap: 'futou', beard: 'short', hair: '#15130f', skin: '#d8a985', height: 0.98, face: 'broad' },
+  friend2: { outfit: 'robe', robe: '#6f8190', inner: '#e8e3d6', trim: '#3f4d58', belt: '#2d2a26', cap: 'kerchief', capColor: '#2c3a3a', beard: 'mustache', hair: '#1b1917', skin: '#d4a47f', height: 0.99, face: 'round' },
   // 老僕：灰髮、短鬚、短褐、微駝
   oldServant: { outfit: 'tunic', clasp: true, robe: '#7d6a52', inner: '#d9cfbb', trim: '#4f4232', belt: '#3b2f24', pants: '#5b5043', wrap: '#c9bd9c', cap: 'kerchief', capColor: '#4a524e', beard: 'short', hair: '#9a958c', skin: '#cf9f7a', height: 0.95, stoop: 0.12, age: 1, face: 'thin' },
   // 年輕僕人
@@ -233,17 +233,23 @@ const PRESETS = {
 
 // ---------------- 頭部 ----------------
 const HC = new V3(0, 0.108, 0.004);      // 顱中心（face 座標）
+// 臉型參數：w 臉寬、jaw 下頷收窄、chin 下巴長、nh 鼻樑高、nw 鼻寬、nTop 鼻樑起點、lip 唇厚、cb 顴骨、cf 面頰豐滿、
+// br 眉弓、ch 下巴突出、eyeTilt 眼角上揚、eyeOpen 眼睜開程度、bTilt 眉尾上揚、bw 眉粗、worry 眉心皺紋
+const FACE_BASE = { hollow: 0, w: 1, jaw: 1, chin: 1, nh: 1, nw: 1, nTop: -0.004, lip: 1, cb: 1, cf: 1, br: 1, ch: 1, eyeTilt: 0.03, eyeOpen: 1, bTilt: 0, bw: 1, worry: 0 };
 const FACES = {
-  long: { w: 1, jaw: 1, chin: 1.08 },
-  round: { w: 1.03, jaw: 0.9, chin: 0.96 },
-  thin: { w: 0.97, jaw: 1.1, chin: 1.04 },
-  broad: { w: 1.05, jaw: 0.85, chin: 1 },
+  // 柳宗元：清瘦長臉、高而直的鼻樑、顴骨明顯兩頰微陷、薄唇、尖下巴、眼角微揚（丹鳳眼）、劍眉、眉心有愁紋
+  scholar: { w: 0.9, jaw: 1.4, chin: 1.18, hollow: 1, nh: 1.35, nw: 0.8, nTop: 0.012, lip: 0.7, cb: 1.5, cf: -0.5, br: 1.35, ch: 1.25, eyeTilt: 0.16, eyeOpen: 0.8, bTilt: 1, bw: 1.15, worry: 1 },
+  long: { w: 0.98, jaw: 1.05, chin: 1.06, nh: 1.05, nw: 0.95 },
+  round: { w: 1.05, jaw: 0.75, chin: 0.94, nh: 0.75, nw: 1.25, lip: 1.2, cb: 0.8, cf: 1.6, br: 0.8, ch: 0.8, eyeOpen: 1.05, bTilt: -0.3, bw: 1.1 },
+  thin: { w: 0.97, jaw: 1.15, chin: 1.03, nh: 1, nw: 1.05, lip: 0.85, cb: 1.2, br: 1.1, eyeOpen: 0.85, bTilt: -0.5, bw: 0.9 },
+  broad: { w: 1.08, jaw: 0.6, chin: 0.98, nh: 0.85, nw: 1.35, lip: 1.25, cb: 1.3, cf: 0.8, br: 1.3, ch: 1.1, eyeOpen: 0.9, bw: 1.3 },
 };
+const faceOf = (o) => Object.assign({}, FACE_BASE, FACES[o.face] || FACES.long);
 // 頭部參數曲面：headPoint(θ, φ) 為雕塑後的頭形；回傳 { geo, sample, shell }
 function headModel(o) {
   const key = `head|${o.face}|${o.age || 0}|${o.beard}`;
   return G(key, () => {
-    const F = FACES[o.face] || FACES.long;
+    const F = faceOf(o);
     const age = o.age || 0;
     const RU = 0.1, RD = 0.116 * F.chin;
     const headPoint = (th, ph) => {
@@ -262,20 +268,20 @@ function headModel(o) {
       // 五官
       const ax = Math.abs(X);
       let f = 0;
-      f += 0.005 * gauss(ax, Y, 0.03, 0.018, 0.022, 0.007);                // 眉弓
+      f += 0.005 * F.br * gauss(ax, Y, 0.03, 0.018, 0.022, 0.007);         // 眉弓
       f += 0.0025 * gauss(X, Y, 0, 0.012, 0.01, 0.01);                     // 眉心
-      f -= 0.009 * gauss(ax, Y, 0.031, -0.001, 0.0135, 0.009);             // 眼窩
-      const noseW = 0.0062 + 0.0085 * sstep(-0.015, -0.05, Y);
-      f += 0.0155 * sstep(-0.004, -0.047, Y) * sstep(-0.064, -0.05, Y) * Math.exp(-(X * X) / (2 * noseW * noseW)); // 鼻樑至鼻尖
-      f += 0.0075 * gauss(ax, Y, 0.0125, -0.05, 0.007, 0.006);             // 鼻翼
+      f -= 0.009 * (0.7 + 0.3 * F.br) * gauss(ax, Y, 0.031, -0.001, 0.0135, 0.009);             // 眼窩
+      const noseW = (0.0062 + 0.0085 * sstep(-0.015, -0.05, Y)) * F.nw;
+      f += 0.0155 * F.nh * sstep(F.nTop, -0.047, Y) * sstep(-0.064, -0.05, Y) * Math.exp(-(X * X) / (2 * noseW * noseW)); // 鼻樑至鼻尖
+      f += 0.0075 * gauss(ax, Y, 0.0125 * F.nw, -0.05, 0.007 * F.nw, 0.006);             // 鼻翼
       f -= 0.0025 * gauss(ax, Y, 0.022, -0.051, 0.004, 0.006);             // 鼻翼溝
-      f += 0.0055 * gauss(X, Y, 0, -0.065, 0.018, 0.0055);                 // 上唇
-      f += 0.006 * gauss(X, Y, 0, -0.078, 0.015, 0.005);                   // 下唇
+      f += 0.0055 * F.lip * gauss(X, Y, 0, -0.065, 0.018, 0.0055 * (0.6 + 0.4 * F.lip));                 // 上唇
+      f += 0.006 * F.lip * gauss(X, Y, 0, -0.078, 0.015, 0.005 * (0.6 + 0.4 * F.lip));                   // 下唇
       f -= 0.003 * gauss(X, Y, 0, -0.0712, 0.021, 0.0016);                 // 口縫
       f -= 0.0022 * gauss(X, Y, 0, -0.088, 0.018, 0.004);                  // 頦唇溝
-      f += 0.007 * gauss(X, Y, 0, -0.103, 0.022, 0.012);                   // 下巴
-      f += (0.005 - age * 0.002) * gauss(ax, Y, 0.047, -0.02, 0.018, 0.013); // 顴骨
-      f += (0.004 - age * 0.008) * gauss(ax, Y, 0.045, -0.052, 0.02, 0.018); // 兩頰（老人凹陷）
+      f += 0.007 * F.ch * gauss(X, Y, 0, -0.103, 0.022 / Math.sqrt(F.ch), 0.012);                   // 下巴
+      f += (0.005 * F.cb - age * 0.002) * gauss(ax, Y, 0.047, -0.02, 0.018, 0.013); // 顴骨
+      f += (0.004 * F.cf - age * 0.008) * gauss(ax, Y, 0.045, -0.052, 0.02, 0.018); // 兩頰（老人凹陷）
       f -= (0.0012 + age * 0.002) * gauss(ax - 0.023 - (Y + 0.05) * -0.25, Y, 0, -0.06, 0.0032, 0.014); // 法令紋
       Z += front * f;
       return [X, Y, Z, front, dz];
@@ -292,7 +298,7 @@ function headModel(o) {
         pos[k] = X + HC.x; pos[k + 1] = Y + HC.y; pos[k + 2] = Z + HC.z;
         // 皮膚色調（乘上 skin 顏色）
         let r = 1, g = 1, b = 1;
-        const lip = front * Math.max(gauss(X, Y, 0, -0.066, 0.0135, 0.004), gauss(X, Y, 0, -0.077, 0.0115, 0.0042));
+        const lip = front * Math.max(gauss(X, Y, 0, -0.066, 0.0135, 0.004 * (0.6 + 0.4 * F.lip)), gauss(X, Y, 0, -0.077, 0.0115, 0.0042 * (0.6 + 0.4 * F.lip)));
         r *= 1 - lip * 0.06; g *= 1 - lip * 0.32; b *= 1 - lip * 0.3;
         const cheek = front * gauss(ax, Y, 0.046, -0.035, 0.018, 0.016) * (1 - age * 0.5);
         g *= 1 - cheek * 0.07; b *= 1 - cheek * 0.08;
@@ -310,6 +316,15 @@ function headModel(o) {
           const wr = fore * Math.max(0, Math.sin(Y * 700)) ** 6 * 0.2 * age;
           const crow = front * gauss(ax, Y, 0.058, -0.002, 0.006, 0.01) * Math.max(0, Math.sin(Y * 900 + ax * 300)) ** 4 * 0.2 * age;
           r *= 1 - wr - crow; g *= 1 - wr - crow; b *= 1 - wr - crow;
+        }
+        {
+          const hol = front * (F.hollow + age * 0.6) * gauss(ax, Y, 0.047, -0.052, 0.015, 0.016) * 0.13;
+          const hi = front * F.hollow * gauss(ax, Y, 0.05, -0.018, 0.012, 0.009) * 0.05;
+          r *= 1 - hol + hi; g *= 1 - hol * 1.05 + hi; b *= 1 - hol * 0.95 + hi;
+        }
+        if (F.worry) {
+          const fr = front * F.worry * (gauss(ax, Y, 0.0045, 0.02, 0.0012, 0.007) * 0.16 + sstep(0.035, 0.045, Y) * sstep(0.07, 0.06, Y) * (1 - sstep(0.02, 0.04, ax)) * Math.max(0, Math.sin(Y * 520)) ** 8 * 0.1);
+          r *= 1 - fr; g *= 1 - fr; b *= 1 - fr;
         }
         const mic = (hash(i * 131 + j * 17) - 0.5) * 0.012;
         col[k] = r + mic; col[k + 1] = g + mic; col[k + 2] = b + mic;
@@ -379,10 +394,10 @@ function beardGeo(hm, type, seed = 7) {
     }
     strands.push(ribbonGeo(pts, w, w * 0.12, new V3(0, 0, 1), 8, t => 0.85 + 0.25 * t + (R() - 0.5) * 0.15));
   };
-  if (type === 'long' || type === 'short') {
+  if (type === 'long' || type === 'short' || type === 'mustache') {
     const L = type === 'long' ? 1 : 0.45;
     // 下巴一綹
-    for (let k = 0; k < 96; k++) {
+    if (type !== 'mustache') for (let k = 0; k < 96; k++) {
       const x = (R() - 0.5) * 0.042, y = -0.094 - R() * 0.014;
       add(x, y, [x * 1.2, -0.55 - R() * 0.2, 0.55], (0.11 + R() * 0.07) * L, 0.007, 7, 0.9);
     }
@@ -586,26 +601,48 @@ export function makePerson(opts = {}) {
   }
 
   // ================= 手臂（肩為支點；廣袖或窄袖） =================
+  // 手臂分上臂（肩為支點）與前臂（肘為支點），前臂內有手與握杯點
+  const ELBOW = -0.29;
   function arm(side) {
     const g = new THREE.Group(); g.position.set(0.215 * side, 1.44, 0);
     const fs = folds(seed + side * 3, 7, 12);
+    const fore = new THREE.Group(); g.add(fore);
+    const sleeveLow = new THREE.Group(); fore.add(sleeveLow);   // 舉手時廣袖會滑向手肘
+    let sleeve, handPos, relaxed, gripG;
     if (robeOutfit) {
-      const sleeve = makeShape([[-0.64, 0.112, 0.178, 0.025, 0.028 * side], [-0.5, 0.104, 0.152, 0.014, 0.022 * side], [-0.33, 0.09, 0.11, 0.005, 0.012 * side], [-0.15, 0.078, 0.086, 0, 0.004 * side], [-0.03, 0.074, 0.078, 0, 0], [0.0, 0.064, 0.068, 0, -0.008 * side], [0.022, 0.03, 0.034, 0, -0.018 * side], [0.03, 0.01, 0.01, 0, -0.022 * side]],
+      sleeve = makeShape([[-0.64, 0.112, 0.178, 0.025, 0.028 * side], [-0.5, 0.104, 0.152, 0.014, 0.022 * side], [-0.33, 0.09, 0.11, 0.005, 0.012 * side], [-0.15, 0.078, 0.086, 0, 0.004 * side], [-0.03, 0.074, 0.078, 0, 0], [0.0, 0.064, 0.068, 0, -0.008 * side], [0.022, 0.03, 0.034, 0, -0.018 * side], [0.03, 0.01, 0.01, 0, -0.022 * side]],
         (a, y) => fs(a, y) * (0.002 + 0.01 * sstep(-0.1, -0.62, y)), clothTone(fs, 0.3));
-      const geo = G(`sleeve|${seed}|${side}`, () => shapeGeo(sleeve, { y0: -0.64, y1: 0.03, ny: 30, na: 40 }));
-      add(g, geo, o.robe, 'cloth');
-      add(g, geo, shade(o.robe, -0.22), 'cloth', { side: THREE.BackSide });
-      add(g, G(`cuff|${seed}|${side}`, () => shapeGeo(sleeve, { y0: -0.64, y1: -0.6, ny: 3, na: 40, off: 0.0025 })), o.trim, 'cloth', DS);
-      const hand = add(g, handGeo(side, 0.35), o.skin, 'skin'); hand.position.set(0.024 * side, -0.598, 0.018);
+      handPos = [0.024 * side, -0.598, 0.018]; relaxed = 0.35;
     } else {
-      const sleeve = makeShape([[-0.585, 0.038, 0.042, 0.012, 0.024 * side], [-0.52, 0.043, 0.047, 0.01, 0.022 * side], [-0.3, 0.05, 0.053, 0.004, 0.014 * side], [-0.03, 0.058, 0.06, 0, 0], [0.0, 0.052, 0.055, 0, -0.008 * side], [0.022, 0.026, 0.028, 0, -0.018 * side], [0.03, 0.01, 0.01, 0, -0.022 * side]],
+      sleeve = makeShape([[-0.585, 0.038, 0.042, 0.012, 0.024 * side], [-0.52, 0.043, 0.047, 0.01, 0.022 * side], [-0.3, 0.05, 0.053, 0.004, 0.014 * side], [-0.03, 0.058, 0.06, 0, 0], [0.0, 0.052, 0.055, 0, -0.008 * side], [0.022, 0.026, 0.028, 0, -0.018 * side], [0.03, 0.01, 0.01, 0, -0.022 * side]],
         (a, y) => fs(a, y) * 0.004, clothTone(fs, 0.25));
-      add(g, G(`tsleeve|${seed}|${side}`, () => shapeGeo(sleeve, { y0: -0.585, y1: 0.03, ny: 26, na: 28 })), o.robe, 'cloth', DS);
-      add(g, G(`tcuff|${seed}|${side}`, () => shapeGeo(sleeve, { y0: -0.585, y1: -0.555, ny: 2, na: 28, off: 0.002 })), o.trim, 'cloth', DS);
-      const hand = add(g, handGeo(side, 0.4, 0.97), o.skin, 'skin'); hand.position.set(0.024 * side, -0.56, 0.012);
+      handPos = [0.024 * side, -0.56, 0.012]; relaxed = 0.4;
     }
+    const ex = sleeve.cx(ELBOW), ez = sleeve.cz(ELBOW);
+    fore.position.set(ex, ELBOW, ez);
+    const toFore = (geo) => geo.clone().translate(-ex, -ELBOW, -ez);
+    const y0 = robeOutfit ? -0.64 : -0.585, kind = robeOutfit ? 'sleeve' : 'tsleeve';
+    // 上臂袖
+    add(g, G(`${kind}U|${seed}|${side}`, () => shapeGeo(sleeve, { y0: ELBOW - 0.035, y1: 0.03, ny: 16, na: robeOutfit ? 40 : 28 })), o.robe, 'cloth', DS);
+    // 肘部（彎曲時補上縫隙）
+    add(fore, G(`elbow|${kind}|${seed}|${side}`, () => ellipsoid(1, sleeve.rx(ELBOW) * 0.97, sleeve.rx(ELBOW) * 0.9, sleeve.rz(ELBOW) * 0.97, null, 20)), o.robe, 'cloth');
+    // 前臂袖、袖口
+    const low = G(`${kind}L|${seed}|${side}`, () => toFore(shapeGeo(sleeve, { y0, y1: ELBOW + 0.01, ny: 18, na: robeOutfit ? 40 : 28 })));
+    add(sleeveLow, low, o.robe, 'cloth', robeOutfit ? undefined : DS);
+    if (robeOutfit) add(sleeveLow, low, shade(o.robe, -0.22), 'cloth', { side: THREE.BackSide });
+    add(sleeveLow, G(`${kind}C|${seed}|${side}`, () => toFore(shapeGeo(sleeve, { y0, y1: y0 + (robeOutfit ? 0.04 : 0.03), ny: 3, na: robeOutfit ? 40 : 28, off: 0.0025 }))), o.trim, 'cloth', DS);
+    // 廣袖內的中單窄袖（舉手、袖子滑落時可見）
+    if (robeOutfit) {
+      const inner = makeShape([[-0.6, 0.036, 0.04, 0.018, 0.024 * side], [-0.45, 0.042, 0.046, 0.012, 0.018 * side], [-0.3, 0.05, 0.052, 0.005, 0.012 * side]]);
+      add(fore, G(`innerSl|${side}`, () => toFore(shapeGeo(inner, { y0: -0.6, y1: -0.3, ny: 6, na: 20 }))), o.inner, 'cloth');
+    }
+    const hand = add(fore, handGeo(side, relaxed, robeOutfit ? 1 : 0.97), o.skin, 'skin');
+    hand.position.set(handPos[0] - ex, handPos[1] - ELBOW, handPos[2] - ez);
+    // 握杯點：在彎曲的手指之間，杯口朝拇指方向（手的 +z）
+    gripG = new THREE.Group(); gripG.position.set(hand.position.x - side * 0.036, hand.position.y - 0.106, hand.position.z + 0.004); gripG.rotation.x = Math.PI / 2; fore.add(gripG);
     g.rotation.z = 0.1 * side;
     upper.add(g);
+    g.userData = { fore, sleeveLow, hand, grip: gripG, side, relaxedGeo: hand.geometry, gripGeo: handGeo(side, 0.95, robeOutfit ? 1 : 0.97) };
     return g;
   }
   const armL = arm(1), armR = arm(-1);
@@ -622,7 +659,7 @@ export function makePerson(opts = {}) {
   // 耳
   for (const s of [1, -1]) {
     add(face, G(`ear|${s}|${o.face}`, () => {
-      const F = FACES[o.face] || FACES.long;
+      const F = faceOf(o);
       const cx = s * 0.071 * F.w, cy = HC.y - 0.012, cz = -0.012;
       const outerE = ellipsoid(0.03, 0.34, 1, 0.66, null, 14, (x, y, z) => 1 - 0.12 * Math.max(0, x * s) / 0.01);
       outerE.rotateY(-s * 0.35); outerE.translate(cx, cy, cz);
@@ -633,17 +670,18 @@ export function makePerson(opts = {}) {
   }
   // 眼睛（可眨）
   const eyes = [], lids = [];
+  const FF = faceOf(o), lidOpen = -0.12 + (1 - FF.eyeOpen) * 0.55;
   const ER = 0.0118;
   for (const s of [1, -1]) {
     const surf = hm.sample(0.031 * s, HC.y - 0.003);
-    const eg = new THREE.Group(); eg.position.set(0.0305 * s, HC.y - 0.003, surf.z - 0.0062); face.add(eg);
+    const eg = new THREE.Group(); eg.position.set(0.0305 * s, HC.y - 0.003, surf.z - 0.0062); eg.rotation.z = s * FF.eyeTilt; face.add(eg);
     add(eg, G('eyeball', () => ellipsoid(ER, 1, 1, 1, null, 18)), '#e3d9cb', 'eye');
     const iris = add(eg, G('iris', () => withColor(new THREE.SphereGeometry(ER * 1.012, 20, 8, 0, TAU, 0, 0.68).rotateX(Math.PI / 2),
       (x, y, z) => { const r = Math.hypot(x, y) / ER; return r < 0.24 ? 0.1 : r > 0.56 ? 0.55 : 1; })), '#3a2517', 'eye');
     iris.rotation.y = -s * 0.06;
     const lid = new THREE.Group(); eg.add(lid);
     add(lid, G('lidU', () => withColor(new THREE.SphereGeometry(ER * 1.1, 20, 10, 0, TAU, 0, Math.PI * 0.44), (x, y, z) => y < ER * 0.35 && z > 0 ? 0.45 : 0.93)), o.skin, 'skin');
-    lid.rotation.x = -0.12;
+    lid.rotation.x = lidOpen;
     add(eg, G('lidL', () => withColor(new THREE.SphereGeometry(ER * 1.07, 20, 8, 0, TAU, Math.PI * 0.64, Math.PI * 0.36), (x, y, z) => y > -ER * 0.55 && z > 0 ? 0.8 : 0.97)), o.skin, 'skin');
     eyes.push(eg); lids.push(lid);
   }
@@ -652,10 +690,10 @@ export function makePerson(opts = {}) {
     const R = rand(3), parts = [];
     for (const sd of [1, -1]) for (let k = 0; k < 44; k++) {
       const u = k / 43, ax = 0.012 + u * 0.042;
-      const yc = HC.y + 0.0185 + 0.0045 * Math.sin(u * Math.PI * 0.9) - u * 0.004 + (R() - 0.5) * 0.003 * (1 - u * 0.5);
+      const yc = HC.y + 0.0185 + 0.0045 * Math.sin(u * Math.PI * 0.9) - u * 0.004 + FF.bTilt * u * 0.007 + (R() - 0.5) * 0.003 * (1 - u * 0.5);
       const root = hm.sample(sd * ax, yc); root.z += 0.0012;
       const len = 0.011 + (1 - u) * 0.005, ang = 1.05 + u * 0.45 + (R() - 0.5) * 0.2;
-      parts.push(ribbonGeo([[root.x, root.y, root.z], [root.x + sd * Math.sin(ang) * len * 0.6, root.y + Math.cos(ang) * len * 0.5, root.z + 0.0012], [root.x + sd * Math.sin(ang) * len, root.y + Math.cos(ang) * len * 0.6 - len * 0.15, root.z + 0.0012]], 0.0032 * (1 - u * 0.4), 0.0008, new V3(0, 0, 1), 3));
+      parts.push(ribbonGeo([[root.x, root.y, root.z], [root.x + sd * Math.sin(ang) * len * 0.6, root.y + Math.cos(ang) * len * 0.5, root.z + 0.0012], [root.x + sd * Math.sin(ang) * len, root.y + Math.cos(ang) * len * 0.6 - len * 0.15, root.z + 0.0012]], 0.0032 * FF.bw * (1 - u * 0.4), 0.0008, new V3(0, 0, 1), 3));
     }
     return merge(parts);
   }), o.hair, 'hair', DS);
@@ -723,12 +761,75 @@ export function makePerson(opts = {}) {
   let t = Math.random() * 10, blinkIn = 1 + Math.random() * 3, blinkT = 0, glance = 0, glanceIn = 2 + Math.random() * 3;
   const legAmp = robeOutfit ? 0.3 : 0.45;
 
+  // ---------- 握杯與飲酒（兩節手臂的反向運動學） ----------
+  const _v = new V3(), _w = new V3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
+  const DOWN = new V3(0, -1, 0);
+  // 讓手臂 g 的握杯點到達 target（upper 座標），杯口朝 openDir；pole 決定手肘方向
+  function solveArm(g, target, openDir, pole, outA, outF) {
+    const { fore, grip } = g.userData;
+    const S = g.position, e = fore.position, L1 = e.length();
+    const gl = grip.position, L2 = gl.length();
+    const d = clamp(_v.copy(target).sub(S).length(), Math.abs(L1 - L2) + 1e-3, L1 + L2 - 1e-3);
+    const u = _v.copy(target).sub(S).normalize();
+    const a = (L1 * L1 - L2 * L2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+    const pv = pole.clone().addScaledVector(u, -pole.dot(u)).normalize();
+    const elbowDir = u.clone().multiplyScalar(a).addScaledVector(pv, h).normalize();
+    outA.setFromUnitVectors(e.clone().normalize(), elbowDir);
+    // 前臂：先指向目標，再繞前臂軸扭轉，使杯口朝向 openDir
+    const inv = outA.clone().invert();
+    const tLocal = target.clone().sub(S).applyQuaternion(inv).sub(e);
+    const dir = tLocal.clone().normalize();
+    outF.setFromUnitVectors(gl.clone().normalize(), dir);
+    const cur = new V3(0, 0, 1).applyQuaternion(outF);            // 握杯點 +y 等於前臂 +z
+    const want = openDir.clone().applyQuaternion(inv);
+    cur.addScaledVector(dir, -cur.dot(dir)).normalize(); want.addScaledVector(dir, -want.dot(dir)).normalize();
+    let ang = Math.acos(clamp(cur.dot(want), -1, 1));
+    if (new V3().crossVectors(cur, want).dot(dir) < 0) ang = -ang;
+    outF.premultiply(_q2.setFromAxisAngle(dir, ang));
+  }
+  const held = { obj: null, rim: 0.04 };
+  const restA = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -0.1));
+  const qA0 = new THREE.Quaternion(), qF0 = new THREE.Quaternion(), qA1 = new THREE.Quaternion(), qF1 = new THREE.Quaternion();
+  const mouthUpper = () => new V3(0, head.position.y + mouthG.position.y, mouthG.position.z + 0.012);
+  /** 右手拿起物件（酒杯、酒壺）。lift：物件原點相對握點的高度；rim：杯口離握點的距離 */
+  ud.holdCup = (obj, { lift = -0.02, rim = 0.04 } = {}) => {
+    const { grip, hand, gripGeo } = armR.userData;
+    grip.add(obj); obj.position.set(0, lift, 0); obj.rotation.set(0, 0, 0);
+    held.obj = obj; held.rim = rim; hand.geometry = gripGeo;
+    ud.customArms = true;
+  };
+  ud.releaseCup = () => {
+    const { grip, hand, relaxedGeo, fore } = armR.userData;
+    if (held.obj) grip.remove(held.obj);
+    held.obj = null; hand.geometry = relaxedGeo; fore.quaternion.identity();
+    ud.drinkK = 0; ud.customArms = false;
+  };
+  /** 飲酒動作 k：0 手自然下垂 → 1 杯在胸前 → 2 舉杯就口（頭微仰） */
+  ud.drinkPose = (k) => {
+    k = clamp(k, 0, 2); ud.drinkK = k; ud.customArms = true;
+    const { fore } = armR.userData;
+    const chest = new V3(-0.09, 1.2, 0.27), up = new V3(0, 1, 0.15).normalize();
+    solveArm(armR, chest, up, new V3(-0.6, -1, -0.4), qA0, qF0);
+    if (k <= 1) {
+      armR.quaternion.slerpQuaternions(restA, qA0, k);
+      fore.quaternion.slerpQuaternions(_q.identity(), qF0, k);
+      return;
+    }
+    const t = k - 1, tilt = new V3(0, 0.3, -0.95).normalize();
+    const open = up.clone().lerp(tilt, t).normalize();
+    const rimAt = mouthUpper().add(new V3(0, -0.012, 0.03));
+    const target = chest.clone().lerp(rimAt.addScaledVector(open, -held.rim), sstep(0, 1, t));
+    solveArm(armR, target, open, new V3(-1, -0.7, -0.1), qA1, qF1);
+    armR.quaternion.copy(qA1); fore.quaternion.copy(qF1);
+  };
+
   ud.setPose = (pose) => {
     ud.pose = pose; ud.twist = 0;
     body.rotation.set(0, 0, 0); body.position.set(0, 0, 0);
     standLower.visible = pose !== 'sit'; sitLower.visible = pose === 'sit';
     upper.position.set(0, 0, 0); upper.rotation.set(baseStoop, 0, 0);
     armL.rotation.set(0, 0, 0.1); armR.rotation.set(0, 0, -0.1);
+    armL.userData.fore.quaternion.identity(); if (!held.obj) armR.userData.fore.quaternion.identity();
     if (pose === 'sit') {
       upper.position.y = -0.7;
       upper.rotation.x = 0.05;
@@ -746,7 +847,7 @@ export function makePerson(opts = {}) {
     if (blinkIn <= 0) { blinkT = 0.15; blinkIn = 2.5 + Math.random() * 3.5; }
     if (blinkT > 0) blinkT -= dt;
     const closed = ud.pose === 'lie' && ud.eyesClosed ? 1 : blinkT > 0 ? Math.sin((blinkT / 0.15) * Math.PI) : 0;
-    lids[0].rotation.x = lids[1].rotation.x = -0.12 + closed * 1.05;
+    lids[0].rotation.x = lids[1].rotation.x = lidOpen + closed * (1.05 - (lidOpen + 0.12));
     // 說話：嘴巴開合、輕輕點頭、偶爾抬手比劃
     const talking = ud.name && E.speaker === ud.name;
     if (talking) {
@@ -757,6 +858,21 @@ export function makePerson(opts = {}) {
       mouth.scale.y += (1 - mouth.scale.y) * Math.min(1, dt * 10);
       face.rotation.x *= 1 - Math.min(1, dt * 5);
       face.rotation.z *= 1 - Math.min(1, dt * 5);
+    }
+    // 舉杯時頭微仰
+    if (ud.drinkK > 1) face.rotation.x = -0.28 * sstep(1.3, 2, ud.drinkK);
+    // 舉起前臂時，廣袖滑向手肘
+    for (const A of [armL, armR]) {
+      const { fore, sleeveLow } = A.userData;
+      fore.getWorldQuaternion(_q); _w.copy(DOWN).applyQuaternion(_q);
+      const w = robeOutfit ? sstep(-0.3, 0.8, _w.y) : 0;
+      sleeveLow.position.y = w * 0.08; sleeveLow.scale.y = 1 - w * 0.35;
+      // 袖袋受重力下垂：把袖子的「下方」部分轉向地面
+      if (w > 0) {
+        _v.set(0, -1, 0).applyQuaternion(_q.invert());          // 世界向下在前臂座標中的方向
+        _q2.setFromUnitVectors(DOWN, _v);
+        sleeveLow.quaternion.identity().slerp(_q2, 0.45 * w);
+      } else sleeveLow.quaternion.identity();
     }
     // 軟腳、頭巾隨風
     ribbons.forEach((rb, i) => { rb.rotation.x = (o.cap === 'futou' ? 0.35 : 0.3) + Math.sin(t * 1.7 + i) * 0.08 + Math.sin(t * 3.1) * 0.03; });

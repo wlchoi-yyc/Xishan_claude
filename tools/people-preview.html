@@ -29,14 +29,23 @@ if (view === 'lineup') {
   add(q.get('p') || 'liu', 0, 0, 0.35);
   cam.position.set(0, 1.62, 1.05); cam.lookAt(0, 1.64, 0);
 } else if (view === 'faces') {
-  ['liu', 'servant', 'oldServant', 'boatman'].forEach((k, i) => add(k, (i - 1.5) * 0.5, 0, 0.3));
-  cam.position.set(0, 1.62, 2.4); cam.lookAt(0, 1.6, 0);
+  ['liu', 'servant', 'oldServant', 'boatman', 'friend1', 'friend2'].forEach((k, i) => add(k, (i - 2.5) * 0.5, 0, 0.15));
+  cam.position.set(0, 1.62, 3.3); cam.lookAt(0, 1.62, 0);
 } else if (view === 'poses') {
   const a = add('liu', -1.6, 0, 0.4); a.userData.setPose('sit');
   const b = add('servant', -0.2, 0, 0.3); b.userData.setPose('sit');
   const c = add('liu', 1.4, -0.4, 1.2); c.userData.setPose('lie');
-  const d = add('liu', 2.6, 0, -0.5, { name: '柳宗元' }); d.userData.customArms = true; d.userData.armR.rotation.x = -2.0;
+  const d = add('liu', 2.6, 0, -0.5, { name: '柳宗元' }); d.userData.holdCup(world.makeCup(), { lift: -0.02, rim: 0.035 }); d.userData.drinkPose(2);
   cam.position.set(0.4, 2.2, 7); cam.lookAt(0.4, 0.6, 0);
+} else if (view === 'drink') {
+  // ?view=drink&k=0..2&sit=1&ang=
+  const k = parseFloat(q.get('k') || '2'), ang = parseFloat(q.get('ang') || '0.6');
+  const d = add(q.get('p') || 'liu', 0, 0, ang, { name: '柳宗元' });
+  if (q.get('sit')) d.userData.setPose('sit');
+  if (q.get('pot')) { const pt = world.makeWinePot('#7a8a70'); pt.scale.setScalar(0.5); d.userData.holdCup(pt, { lift: -0.13, rim: 0.08 }); } else d.userData.holdCup(world.makeCup(), { lift: -0.025, rim: 0.03 }); d.userData.drinkPose(k);
+  const y = q.get('sit') ? 0.95 : 1.5;
+  cam.position.set(0, y + 0.1, 1.9); cam.lookAt(0, y - 0.05, 0);
+  if (q.get('zoom')) { d.updateMatrixWorld(true); const g = new THREE.Vector3(); d.userData.armR.userData.grip.getWorldPosition(g); cam.position.set(g.x + 0.12, g.y + 0.12, g.z + 0.5); cam.lookAt(g); }
 } else if (view === 'walk') {
   ['liu', 'servant', 'boatman'].forEach((k, i) => { const p = add(k, (i - 1) * 1.1, 0, Math.PI / 2 - 0.3); p.userData.walking = true; });
   cam.position.set(0, 1.2, 6); cam.lookAt(0, 0.85, 0);
