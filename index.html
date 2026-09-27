@@ -109,6 +109,14 @@
 <script src="/__/firebase/8.10.1/firebase-app.js"></script>
 <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
 <script src="/__/firebase/8.10.1/firebase-firestore.js"></script>
+<script>
+// 「首頁」按鈕的後備處理：即使瀏覽器仍在使用舊版遊戲程式，按鈕也一定有反應
+document.getElementById('btnHome').addEventListener('click', function () {
+  if (window.__homeReady) return; // 新版遊戲程式會顯示確認框
+  if (confirm('回到首頁？\n回到標題畫面後，可在「教師：章節選擇」直接跳到任何一關。\n目前這一關的進度不會保存。')) location.href = location.pathname + '?menu=1';
+});
+if (/[?&]menu=1/.test(location.search)) { var tm = document.getElementById('teacherMenu'); if (tm) tm.open = true; }
+</script>
 <script type="module" src="auth.js"></script>
 </body>
 </html>

@@ -28,6 +28,7 @@ ui.initButtons({
 });
 
 // 回到首頁：先確認，再重新載入到標題畫面，並展開「教師：章節選擇」
+window.__homeReady = true;
 document.getElementById('btnHome').addEventListener('click', async () => {
   audio.click();
   const go = await new Promise(res => {
