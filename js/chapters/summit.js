@@ -27,13 +27,27 @@ const lowBumps = (() => {
   }
   return out;
 })();
+// 「若垤若穴」：在第七關第一個標記的方向，做出清楚的土堆（垤）與凹穴（穴）
+const DIE_XUE = (() => {
+  const r = rng(515), out = [], cx = -420, cz = -620;
+  for (let i = 0; i < 11; i++) {
+    const a = i * 2.39996, d = 60 + Math.sqrt(i + 0.5) * 75;
+    out.push({ x: cx + Math.cos(a) * d * 1.2, z: cz + Math.sin(a) * d, h: i % 2 ? -60 - r() * 15 : 70 + r() * 20, s: 26 + r() * 6 });
+  }
+  return out;
+})();
 const RIVERS = [
   [{ x: 2600, z: -900 }, { x: 1600, z: -600 }, { x: 900, z: -750 }, { x: 500, z: -420 }, { x: 200, z: -600 }, { x: -300, z: -500 }, { x: -800, z: -900 }, { x: -1500, z: -700 }, { x: -2600, z: -1100 }],
   [{ x: 700, z: 2600 }, { x: 800, z: 1700 }, { x: 550, z: 1100 }, { x: 750, z: 600 }, { x: 600, z: 300 }, { x: 900, z: -100 }, { x: 700, z: -500 }, { x: 900, z: -1200 }, { x: 700, z: -2600 }],
   [{ x: -2600, z: 900 }, { x: -1800, z: 700 }, { x: -1200, z: 1000 }, { x: -600, z: 700 }, { x: -300, z: 1100 }, { x: 200, z: 900 }, { x: 600, z: 1100 }],
 ];
 // 河道用平滑曲線（向心 Catmull-Rom），蜿蜒而不是一段段直線；地形的河谷也沿同一條曲線挖
-const RIVERS_SMOOTH = RIVERS.map(rv => new THREE.CatmullRomCurve3(rv.map(p => new THREE.Vector3(p.x, 0, p.z)), false, 'centripetal').getPoints(rv.length * 10).map(v => ({ x: v.x, z: v.z })));
+const extendRiver = (rv) => {
+  const ext = (a, b) => { const dx = a.x - b.x, dz = a.z - b.z, L = Math.hypot(dx, dz), k = (3500 - Math.hypot(a.x, a.z)) / L; return k > 0 ? { x: a.x + dx * k, z: a.z + dz * k } : null; };
+  const out = rv.slice(); const e0 = ext(rv[0], rv[1]), e1 = ext(rv[rv.length - 1], rv[rv.length - 2]);
+  if (e0) out.unshift(e0); if (e1) out.push(e1); return out;
+};
+const RIVERS_SMOOTH = RIVERS.map(extendRiver).map(rv => new THREE.CatmullRomCurve3(rv.map(p => new THREE.Vector3(p.x, 0, p.z)), false, 'centripetal').getPoints(rv.length * 10).map(v => ({ x: v.x, z: v.z })));
 function distToPolyline(x, z, pts) {
   let best = 1e9;
   for (let i = 0; i < pts.length - 1; i++) {
@@ -65,9 +79,11 @@ function summitH(x, z) {
   if (r > 300) {
     for (const b of lowBumps) { const dx = x - b.x, dz = z - b.z, d2 = dx * dx + dz * dz; if (d2 < 9 * b.s * b.s) h += b.h * Math.exp(-d2 / (2 * b.s * b.s)); }
     h += fbm(x * 0.002, z * 0.002, 4, 7) * 30;
-    for (const rv of RIVERS_SMOOTH) { const d = distToPolyline(x, z, rv); if (d < 90) h = lerp(h, -275, 1 - smoothstep(20, 90, d)); }
+    for (const b of DIE_XUE) { const dx = x - b.x, dz = z - b.z, d2 = dx * dx + dz * dz; if (d2 < 9 * b.s * b.s) h += b.h * Math.exp(-d2 / (2 * b.s * b.s)); }
     // 天邊的群山
     h += smoothstep(2000, 2900, r) * (60 + fbm(x * 0.003, z * 0.003, 3, 11) * 80);
+    // 河道最後才挖：白水穿過遠山，一直伸到天邊
+    for (const rv of RIVERS_SMOOTH) { const d = distToPolyline(x, z, rv); if (d < 110) h = lerp(h, -275, 1 - smoothstep(22, 110, d)); }
   }
   return h;
 }
@@ -82,6 +98,8 @@ function summitColor(h, slope, x, z) {
   if (r < 400) return xishanColor(h, slope, x, z, n);
   // 青山
   let c = autumnGround(x, z, mixHex('#5d7d58', '#6f8c5c', n));
+  // 「穴」：凹陷處顏色較深，「垤」：土堆頂較淺，讓高下之勢更清楚
+  for (const b of DIE_XUE) { const d = Math.hypot(x - b.x, z - b.z); if (d < b.s * 1.6) { const k = 1 - smoothstep(b.s * 0.3, b.s * 1.6, d); c = b.h < 0 ? mixHex(c, '#2f3d2c', k * 0.75) : mixHex(c, '#a9ad7a', k * 0.35); } }
   if (h > -230) c = mixHex(c, '#4d7263', smoothstep(-230, -180, h));
   if (h < -260) c = mixHex(c, '#8d9270', 0.4);
   return c;
@@ -114,15 +132,20 @@ function buildSummit() {
   });
   // 山頂的古松與石
   const trees = [
-    { type: 'song', x: -9.5, z: -6, s: 1.25, rot: 2.6, tilt: 0.12 },
-    { type: 'song', x: -6.5, z: 9, s: 1.0, rot: 0.9, tilt: -0.1 },
-    { type: 'pine', x: 7, z: -9, s: 1.1, rot: 1 },
-    { type: 'song', x: 5, z: 10, s: 0.95, rot: 4 },
+    // 種在山頂平台內側（半徑約 9 米），不要貼着崖邊；否則從崖下平台仰望，樹根會懸在半空
+    { type: 'song', x: -7.4, z: -4.7, s: 1.25, rot: 2.6, tilt: 0.05 },
+    { type: 'song', x: -5.0, z: 7.6, s: 1.0, rot: 0.9, tilt: -0.05 },
+    { type: 'pine', x: 5.7, z: -7.3, s: 1.1, rot: 1 },
+    { type: 'song', x: 4.1, z: 8.4, s: 0.95, rot: 4 },
   ];
   scene.add(makeTrees(trees, summitH));
   // 山坡上的松（稀疏、大）
-  const farTrees = scatter(900, 29, (x, z, r) => { const d = Math.hypot(x, z); if (d < 30 || d > 380) return false; if (distSeg(x, z, RIM, LEDGE) < 6) return false; return { type: r() < 0.45 ? 'song' : 'pine', s: 2.4 + r() * 2 }; }, { x0: -380, x1: 380, z0: -380, z1: 380 });
-  scene.add(makeTrees(farTrees, summitH));
+  // 地形網格約 4 米一格，斷崖處畫出來的地面與計算高度有落差，樹會懸空：
+  // 所以斜度太大（附近高低差超過 5 米）的位置不種樹，其餘樹根取附近最低點
+  const lowAround = (x, z, k = 4) => Math.min(summitH(x, z), summitH(x + k, z), summitH(x - k, z), summitH(x, z + k), summitH(x, z - k));
+  const steep = (x, z, k = 4) => { const hs = [summitH(x, z), summitH(x + k, z), summitH(x - k, z), summitH(x, z + k), summitH(x, z - k)]; return Math.max(...hs) - Math.min(...hs) > 5; };
+  const farTrees = scatter(900, 29, (x, z, r) => { const d = Math.hypot(x, z); if (d < 30 || d > 380) return false; if (distSeg(x, z, RIM, LEDGE) < 6) return false; if (steep(x, z)) return false; return { type: r() < 0.45 ? 'song' : 'pine', s: 2.4 + r() * 2 }; }, { x0: -380, x1: 380, z0: -380, z1: 380 });
+  scene.add(makeTrees(farTrees, (x, z) => lowAround(x, z) - 0.4));
   const rr = rng(71);
   const rockPos = [[8, 5.5], [6.5, -6.5], [9.5, -1.5]];
   rockPos.forEach(([x, z], i) => { const s = 1 + rr() * 1.4; const m = makeRock(s, '#948d7c', 700 + i); m.position.set(x, summitH(x, z) + s * 0.3, z); m.scale.y = 0.8 + rr() * 0.8; scene.add(m); });
@@ -168,6 +191,7 @@ function buildSummit() {
     blockers: rockPos.map(([x, z]) => ({ x, z, r: 1.1 })).concat(trees.map(t => ({ x: t.x, z: t.z, r: 0.5 }))),
     walkables: [near],
     sky: B.sky, sunLight: B.sun, hemi: B.hemi, riverMats, stars, moon, clouds, cloudMats: [clouds.userData.material, lowClouds.userData.material],
+    mistMat: mist.userData.material, lowCloudMat: lowClouds.userData.material,
     animated: [clouds, lowClouds, mist],
   };
 }
@@ -219,6 +243,60 @@ async function skyTo(w, target, dur) {
   }, t => t);
 }
 
+// ---------------- 看清景物 ----------------
+// 點擊標記時暫時撥開谷中雲霧、推遠霧氣，看完再慢慢合回
+// 走到山頂邊緣、面向那方向（免得山頂的樹和石頭擋住視線）
+async function goEdge(tx, tz, r = 9.6) {
+  const L = Math.hypot(tx, tz);
+  await moveTo(tx / L * r, tz / L * r, 1.4);
+}
+async function clearView(w, on, dur = 1.6, { keepFog = false } = {}) {
+  const hi = w.cloudMats[0];
+  if (!w._view) w._view = { mist: w.mistMat.opacity, low: w.lowCloudMat.opacity, hi: hi.opacity, far: w.scene.fog.far, near: w.scene.fog.near };
+  const v = w._view, m0 = w.mistMat.opacity, l0 = w.lowCloudMat.opacity, h0 = hi.opacity, f0 = w.scene.fog.far, n0 = w.scene.fog.near;
+  const m1 = on ? 0.03 : v.mist, l1 = on ? 0 : v.low, h1 = on ? 0 : v.hi, f1 = on && !keepFog ? 9000 : v.far, n1 = on && !keepFog ? 900 : v.near;
+  // 後來的呼叫優先：玩家很快點下一個標記時，上一個「還原」不會把雲霧拉回來
+  const ver = w._viewVer = (w._viewVer || 0) + 1;
+  await tween(dur, k => { if (ver !== w._viewVer) return; w.mistMat.opacity = lerp(m0, m1, k); w.lowCloudMat.opacity = lerp(l0, l1, k); hi.opacity = lerp(h0, h1, k); w.scene.fog.far = lerp(f0, f1, k); w.scene.fog.near = lerp(n0, n1, k); });
+}
+// 在 3D 位置旁顯示文字標籤（跟隨鏡頭）
+function worldLabels(items) {
+  const els = items.map(({ text }) => {
+    const el = document.createElement('div');
+    el.textContent = text;
+    el.style.cssText = 'position:fixed;z-index:30;transform:translate(-50%,-50%);padding:2px 10px;border-radius:12px;background:rgba(30,26,20,.62);color:#fff3d6;font:600 18px "LXGW WenKai TC","Noto Serif TC",serif;letter-spacing:.1em;pointer-events:none;opacity:0;transition:opacity .8s;white-space:nowrap';
+    document.body.appendChild(el); requestAnimationFrame(() => { el.style.opacity = '1'; });
+    return el;
+  });
+  const v = new THREE.Vector3();
+  const fn = () => items.forEach((it, i) => {
+    v.copy(it.pos).project(E.camera);
+    const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+    els[i].style.display = vis ? 'block' : 'none';
+    els[i].style.left = ((v.x + 1) / 2 * innerWidth) + 'px'; els[i].style.top = ((1 - v.y) / 2 * innerHeight) + 'px';
+  });
+  E.onUpdate.push(fn);
+  return () => { const j = E.onUpdate.indexOf(fn); if (j >= 0) E.onUpdate.splice(j, 1); els.forEach(el => { el.style.opacity = '0'; setTimeout(() => el.remove(), 900); }); };
+}
+// 「尺寸千里」：伸出拇指和食指比出一寸，遠方的山河就夾在指間
+function pinchOverlay() {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;inset:0;z-index:25;pointer-events:none;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 1.2s';
+  // 手的剪影（近在眼前、背光），食指與拇指之間留一道縫，正好夾住畫面中央的遠山
+  el.innerHTML = `<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">
+    <g fill="rgba(38,30,24,.86)" stroke="rgba(255,236,200,.35)" stroke-width="1.5">
+      <path d="M520 70 C470 72 420 84 380 96 L300 110 L214 111 C196 111 188 118 188 125 C188 132 196 138 214 138 L300 139 C330 141 350 150 360 162 L236 162 C218 162 210 169 210 177 C210 186 219 192 236 192 L330 196 C360 214 400 260 440 330 L520 330 Z"/>
+      <path d="M392 150 C372 150 366 160 372 170 M398 178 C380 178 374 188 380 198" fill="none" stroke="rgba(255,236,200,.25)"/>
+    </g>
+    <g stroke="#fff3d6" stroke-width="2" fill="none"><path d="M176 139 v22 M170 139 h12 M170 161 h12"/></g>
+    <text x="166" y="156" fill="#fff3d6" font-size="15" text-anchor="end" font-family="LXGW WenKai TC, serif" style="paint-order:stroke" stroke="rgba(30,26,20,.7)" stroke-width="4">一寸</text>
+    <text x="200" y="100" fill="#fff3d6" font-size="15" text-anchor="middle" font-family="LXGW WenKai TC, serif" style="paint-order:stroke" stroke="rgba(30,26,20,.7)" stroke-width="4">千里</text>
+    <path d="M200 104 v30" stroke="#fff3d6" stroke-width="1.5" stroke-dasharray="3 3"/>
+  </svg>`;
+  document.body.appendChild(el); requestAnimationFrame(() => { el.style.opacity = '1'; });
+  return () => { el.style.opacity = '0'; setTimeout(() => el.remove(), 1300); };
+}
+
 // ================= 第七關 =================
 let W = null;
 export async function chapter7() {
@@ -256,42 +334,81 @@ export async function chapter7() {
     W.scene.add(m);
     return m;
   };
-  const sUpDown = spot(-380, -560, '高低起伏的地勢', 70);
-  const sFar = spot(-2200, 900, '遠處的土地', 160);
-  const sGreen = spot(900, -300, '青山與白水', 110);
+  const sUpDown = spot(-420, -620, '高低起伏的地勢', 90);
+  // 遠方的土地：朝北望（避開西面的太陽，免得逆光一片白）
+  const sFar = spot(400, 2300, '遠處的土地', 160);
+  // 沿着一條向東流向天邊的白水望去
+  const sGreen = spot(1500, -640, '青山與白水', 130);
 
   const pUpDown = clue(sUpDown, '高低起伏的地勢', async () => {
-    await lookAt(sUpDown.position, 1.2);
-    await ui.say('', '從山頂往下看：有的地方隆起，像蟻穴旁的小土堆；有的地方凹陷，像一個個洞穴。');
+    await Promise.all([clearView(W, true), goEdge(-420, -620)]);
+    await lookAt(new THREE.Vector3(-420, summitH(-420, -620), -620), 1.2);
+    E.fovTarget = 38;
+    // 斜陽側照，高處受光、低處落在陰影裏，起伏一目了然
+    const sd0 = W.sunLight.userData.dir.clone(), sd1 = new THREE.Vector3(0.9, 0.22, -0.2).normalize();
+    await tween(2, k => W.sunLight.userData.dir.lerpVectors(sd0, sd1, k).normalize());
+    const top = DIE_XUE.filter(b => b.h > 0).slice(0, 3), low = DIE_XUE.filter(b => b.h < 0).slice(0, 3);
+    const off = worldLabels([
+      ...top.map(b => ({ text: '垤', pos: new THREE.Vector3(b.x, summitH(b.x, b.z) + 6, b.z) })),
+      ...low.map(b => ({ text: '穴', pos: new THREE.Vector3(b.x, summitH(b.x, b.z) + 4, b.z) })),
+    ]);
+    await ui.say('', '從山頂往下看：有的地方隆起，像蟻穴旁的小土堆（垤）；有的地方凹陷，像一個個洞穴（穴）。');
+    await ui.say('', '在山下時，這些都是大山深谷；從這裏望下去，卻小得像土堆和洞穴。');
     ui.hideDialog();
+    off();
+    E.fovTarget = 70;
+    await tween(2, k => W.sunLight.userData.dir.lerpVectors(sd1, sd0, k).normalize());
+    clearView(W, false, 3);
     await ui.caption('其高下之勢，岈然窪然，若垤若穴。', { gloss: '岈然：山谷空闊深邃的樣子；窪然：低凹的樣子。高的像小土堆（垤），低的像洞穴。', hold: 7.5 });
     ui.journalAdd('景物', '地勢高低起伏：高處像小土堆，低處像洞穴。', '岈然窪然，若垤若穴');
     ui.journalAdd('字詞', '岈然：山谷空闊深邃貌。窪然：低陷貌。垤：蟻穴外隆起的小土堆。', '岈然窪然');
   }, { walk: false, range: 1e9 }).then(() => { n++; prog(); });
 
   const pFar = clue(sFar, '遠處的土地', async () => {
-    await lookAt(sFar.position, 1.2);
+    await Promise.all([clearView(W, true, 1.6, { keepFog: true }), goEdge(400, 2300, 11)]);   // 保留遠霧：山脊一層淡過一層
+    // 對準天邊的山脊（畫面中央），手指的縫正好夾住它
+    await lookAt(new THREE.Vector3(520, -150, 2990), 1.2, -0.1);
     await ui.say('', '把目光推向最遠的地方——');
     ui.hideDialog();
     E.fovTarget = 16;
     audio.whoosh();
     await wait(3);
-    await ui.say('', '千里之外的山河，看起來卻只有尺寸之大，一層層擠在一起，全都擺在眼前。');
+    await ui.say('', '那是千里之外的山河：一層又一層，聚攏、堆疊在一起。');
     ui.hideDialog();
     E.fovTarget = 70;
-    await wait(1.5);
+    await wait(2);
+    const offHand = pinchOverlay();
+    await wait(1.2);
+    await ui.say('', '伸出手指比一比——千里之遠，竟然只在一寸之間。沒有一處能躲得起來。');
+    ui.hideDialog();
+    offHand();
+    clearView(W, false, 3);
+    await wait(1);
     await ui.caption('尺寸千里，攢蹙累積，莫得遯隱。', { gloss: '千里之遙，看起來只在尺寸之間；遠方景物聚攏、堆疊，沒有一處能躲藏起來。', hold: 7.5 });
     ui.journalAdd('景物', '千里之遠，縮成尺寸；景物聚攏重疊，無一能隱藏。', '尺寸千里，攢蹙累積，莫得遯隱');
     ui.journalAdd('字詞', '攢蹙：聚集收縮。遯隱：躲藏。', '攢蹙累積');
   }, { walk: false, range: 1e9 }).then(() => { n++; prog(); });
 
   const pGreen = clue(sGreen, '青山與白水', async () => {
-    await lookAt(sGreen.position, 1.2);
-    await tween(2, k => W.riverMats.forEach(m => m.emissiveIntensity = 0.3 + k * 0.5));
+    await Promise.all([clearView(W, true), moveTo(8.2, -5.2, 1.4)]);
+    // 霧色換成天邊的顏色：遠處的白水、青山漸漸溶入天空
+    const u = W.sky.uniforms, fog0 = W.scene.fog.color.clone(), fog1 = u.horizon.value.clone().lerp(new THREE.Color('#ffffff'), 0.25);
+    const far0 = W.scene.fog.far;
+    await Promise.all([
+      lookAt(new THREE.Vector3(3400, -250, -1100), 1.6, -0.07),
+      tween(2.5, k => { W.riverMats.forEach(m => { m.emissiveIntensity = 0.3 + k * 0.7; }); W.scene.fog.color.lerpColors(fog0, fog1, k); W.scene.background.copy(W.scene.fog.color); W.scene.fog.far = lerp(far0, 4200, k); }),
+    ]);
+    const offG = worldLabels([
+      { text: '青', pos: new THREE.Vector3(1300, summitH(1300, -300) + 20, -300) },
+      { text: '白', pos: new THREE.Vector3(1250, -265, -640) },
+      { text: '天際', pos: new THREE.Vector3(3350, -150, -1080) },
+    ]);
     await ui.say('', '青色的山巒一重接一重，白色的江水在山間迴環纏繞，一直伸向天邊，和天空連在一起。');
     ui.hideDialog();
     await ui.caption('縈青繚白，外與天際。', { gloss: '青山白水互相縈繞，向外延伸到天邊，與天相接。', hold: 7 });
-    await tween(2, k => W.riverMats.forEach(m => m.emissiveIntensity = 0.8 - k * 0.5));
+    offG();
+    await tween(2.5, k => { W.riverMats.forEach(m => { m.emissiveIntensity = 1.0 - k * 0.7; }); W.scene.fog.color.lerpColors(fog1, fog0, k); W.scene.background.copy(W.scene.fog.color); });
+    await clearView(W, false, 3);
     ui.journalAdd('景物', '青山白水互相縈繞，一直延伸到天邊。', '縈青繚白，外與天際');
   }, { walk: false, range: 1e9 }).then(() => { n++; prog(); });
 
