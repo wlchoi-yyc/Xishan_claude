@@ -162,8 +162,11 @@ function buildSummit() {
     pn.position.set(x, base - 5, z); scene.add(pn);
   }
   // 雲：高空的雲，和與山頂齊平、甚至在腳下的雲
-  const clouds = makeClouds({ count: 30, rMin: 1400, rMax: 3200, yMin: 250, yMax: 600, size: [500, 1000], seed: 41 });
-  const lowClouds = makeClouds({ count: 26, rMin: 700, rMax: 2600, yMin: -170, yMax: -40, size: [380, 800], seed: 42, opacity: 0.8 });
+  // 高空雲：推遠、調淡，免得在天上變成一大團過曝的白
+  const clouds = makeClouds({ count: 24, rMin: 1800, rMax: 3600, yMin: 320, yMax: 700, size: [450, 850], seed: 41, opacity: 0.7, color: '#f1f2ee' });
+  // 腳下的雲：壓低到山谷上空（在地平線以下），數量、大小、濃度都減少，
+  // 以免一團團白雲疊在天際線上，把「縈青繚白，外與天際」的遠景洗白
+  const lowClouds = makeClouds({ count: 14, rMin: 600, rMax: 1800, yMin: -225, yMax: -170, size: [260, 520], seed: 42, opacity: 0.5, color: '#eef1ee' });
   // 雲海：谷中的霧
   const mist = makeMist({ count: 70, rMin: 200, rMax: 2400, y: -238, yJitter: 14, size: [260, 520], opacity: 0.32, seed: 43 });
   scene.add(clouds, lowClouds, mist);

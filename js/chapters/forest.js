@@ -17,6 +17,10 @@ function forestColor(h, slope, x, z) {
   let c = autumnGround(x * 3, z * 3, mixHex('#5f7a3f', '#7d8a48', n));
   if (slope > 0.35) c = mixHex(c, '#7a6e58', smoothstep(0.35, 0.6, slope));
   if (h > 16) c = mixHex(c, '#8a8a70', smoothstep(16, 28, h));
+  // 深林、幽泉：林蔭下地面較暗、帶青苔色，營造「深」「幽」之感
+  const df = Math.hypot(x - ZONES.forest.x, z - ZONES.forest.z), ds = Math.hypot(x - ZONES.spring.x, z - ZONES.spring.z);
+  const shade = Math.max(1 - smoothstep(20, 46, df), 0.85 * (1 - smoothstep(9, 26, ds)));
+  if (shade > 0) c = mixHex(c, '#3c4e2e', shade * 0.62);
   return c;
 }
 function distToPolyline(x, z, pts) {
@@ -87,7 +91,7 @@ function craggyRock(H, seed) {
 }
 
 function buildForest() {
-  const B = baseScene({ fog: '#cfd8d6', fogNear: 25, fogFar: 230, sky: { top: '#76a6d2', sunDir: [0.55, 0.32, -0.6], sunColor: '#fff0d8' }, hemi: ['#dfeaf4', '#5a5440', 1.15], sun: ['#ffeccc', 1.9] });
+  const B = baseScene({ fog: '#c6d1cb', fogNear: 20, fogFar: 200, sky: { top: '#76a6d2', sunDir: [0.55, 0.32, -0.6], sunColor: '#fff0d8' }, hemi: ['#dfeaf4', '#5a5440', 1.15], sun: ['#ffeccc', 1.9] });
   const { scene } = B;
   const terrain = makeTerrain({ size: 320, seg: 128, heightAt: forestHeight, colorAt: forestColor });
   scene.add(terrain);
@@ -105,16 +109,34 @@ function buildForest() {
 
   // 樹木
   const avoid = (x, z) => distToPolyline(x, z, CREEK) < 5 || Math.hypot(x - ZONES.spring.x, z - ZONES.spring.z) < 11 || Math.hypot(x - ZONES.rocks.x, z - ZONES.rocks.z) < 10 || Math.hypot(x - 0, z - 90) < 14;
+  // 線索附近留出空地，免得被樹擋住；深林中央的壓草處是一小片林間空地
+  const clearing = (x, z) => Math.hypot(x - ZONES.forest.x, z - ZONES.forest.z) < 5 || Math.hypot(x - ZONES.hill.x, z - ZONES.hill.z) < 9;
+  // 通往深林、幽泉的林間小徑保持可走
+  const trail = (x, z) => distToPolyline(x, z, [{ x: 0, z: 80 }, { x: -22, z: 45 }, { x: ZONES.forest.x, z: ZONES.forest.z }, { x: -44, z: -10 }, { x: ZONES.spring.x, z: ZONES.spring.z }]) < 3;
+  // 程式樹以 InstancedMesh 繪畫，棵數增加對效能影響很小；近處素材樹仍受 nature.js 的半徑與自動降級保護
+  const ok = (x, z) => !avoid(x, z) && !clearing(x, z) && !trail(x, z);
+  const woodType = (r) => { const t = r(); return t < 0.45 ? 'pine' : t < 0.85 ? 'broad' : 'song'; };
   const trees = scatter(420, 11, (x, z, r) => {
-    if (avoid(x, z)) return false;
+    if (!ok(x, z)) return false;
     const dense = Math.hypot(x - ZONES.forest.x, z - ZONES.forest.z) < 32;
     const edge = Math.hypot(x, z) > 60;
     if (!dense && !edge && r() > 0.35) return false;
     const t = r();
     return { type: dense ? (t < 0.5 ? 'pine' : t < 0.85 ? 'broad' : 'song') : (t < 0.3 ? 'pine' : t < 0.55 ? 'broad' : t < 0.72 ? 'maple' : t < 0.82 ? 'ginkgo' : t < 0.92 ? 'bamboo' : 'song'), s: dense ? 1.1 + r() * 0.8 : 0.8 + r() * 0.7 };
   }, { x0: -150, x1: 150, z0: -150, z1: 150 });
+  // 深林：另外加密一片高大的樹，走進去時四周都是樹幹、頭上是樹冠
+  // 這些加密的樹只用輕量的程式樹（不換成近處素材樹），所以幾乎不增加負擔
+  const fx = ZONES.forest.x, fz = ZONES.forest.z;
+  const extra = scatter(110, 17, (x, z, r) => ok(x, z) && Math.hypot(x - fx, z - fz) < 38 && { type: woodType(r), s: 1.5 + r() * 0.9 },
+    { x0: fx - 38, x1: fx + 38, z0: fz - 38, z1: fz + 38 });
+  // 幽泉：一圈樹圍着泉水，泉邊較暗、較靜
+  const sx0 = ZONES.spring.x, sz0 = ZONES.spring.z;
+  extra.push(...scatter(45, 19, (x, z, r) => { const d = Math.hypot(x - sx0, z - sz0); return ok(x, z) && d > 12 && d < 24 && { type: woodType(r), s: 1.2 + r() * 0.7 }; },
+    { x0: sx0 - 24, x1: sx0 + 24, z0: sz0 - 24, z1: sz0 + 24 }));
   // 高山路徑附近保持開闊
   scene.add(makeTrees(trees, forestHeight, { hq: true }));
+  scene.add(makeTrees(extra, forestHeight));
+  trees.push(...extra);   // 仍然作為碰撞障礙
   const bushes = scatter(120, 22, (x, z) => !avoid(x, z), { x0: -120, x1: 120, z0: -120, z1: 120 }).map(b => Object.assign(b, { type: 'bush', s: 0.6 + b.s * 0.4 }));
   scene.add(makeTrees(bushes, forestHeight, { hq: true }));
 

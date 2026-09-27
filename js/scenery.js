@@ -63,9 +63,10 @@ export function makeMist({ count = 20, center = [0, 0], rMin = 0, rMax = 300, y 
   material.onBeforeCompile = (sh) => {
     sh.vertexShader = 'varying vec3 vMistWP;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vMistWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = 'varying vec3 vMistWP;\n' + sh.fragmentShader.replace('#include <opaque_fragment>',
-      'diffuseColor.a *= smoothstep(0.02, 0.22, abs(normalize(cameraPosition - vMistWP).y));\n#include <opaque_fragment>');
+      // 站在霧片中時，腳邊的霧會變成一層灰膜蓋住地面，所以近處（約 20 米內）也淡出
+      'diffuseColor.a *= smoothstep(0.02, 0.22, abs(normalize(cameraPosition - vMistWP).y)) * smoothstep(6.0, 22.0, distance(cameraPosition, vMistWP));\n#include <opaque_fragment>');
   };
-  material.customProgramCacheKey = () => 'mist-v1';
+  material.customProgramCacheKey = () => 'mist-v2';
   const items = [];
   for (let i = 0; i < count; i++) {
     const a = r() * Math.PI * 2, d = rMin + Math.sqrt(r()) * (rMax - rMin);
