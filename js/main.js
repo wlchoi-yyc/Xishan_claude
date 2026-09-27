@@ -27,23 +27,6 @@ ui.initButtons({
   onHint: (h) => ui.toast(h || '四處看看，點擊發光的標記。'),
 });
 
-// 回到首頁：先確認，再重新載入到標題畫面，並展開「教師：章節選擇」
-window.__homeReady = true;
-document.getElementById('btnHome').addEventListener('click', async () => {
-  audio.click();
-  const go = await new Promise(res => {
-    ui.modal(`<h2><span class="seal">首頁</span>回到首頁？</h2>
-      <p class="lead">回到標題畫面後，可在「教師：章節選擇」直接跳到任何一關。<br>目前這一關的進度不會保存。</p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="primary" id="homeYes">回到首頁</button>
-        <button class="primary" id="homeNo" style="background:#3d5f58">繼續遊戲</button>
-      </div>`).then(() => res(false));
-    document.getElementById('homeYes').addEventListener('click', () => { ui.closeModal(); res(true); });
-    document.getElementById('homeNo').addEventListener('click', () => { ui.closeModal(); res(false); });
-  });
-  if (go) location.href = location.pathname + '?menu=1';
-});
-
 async function start(from = 0) {
   audio.init();
   const title = document.getElementById('title');
