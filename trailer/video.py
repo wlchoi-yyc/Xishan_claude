@@ -1,5 +1,5 @@
-# 預告片畫面：程式生成水墨山水 + 文字動畫，輸出 1920x1080 30fps 原始影格到 stdout
-# 用法：python3 video.py | ffmpeg -f rawvideo -pix_fmt rgb24 -s 1920x1080 -r 30 -i - ...
+# 預告片畫面：以六張參考圖（shots/）做鏡頭推移、光束、雲霧、粒子與調色，加上文字動畫
+# 輸出 1920x1080 30fps 原始影格到 stdout；python3 video.py still 12.5 可輸出單格預覽
 import os
 import sys
 import math
@@ -29,31 +29,72 @@ def lerp(a, b, k):
     return a + (b - a) * k
 
 
-# ---------------- 噪聲與山形 ----------------
-
-def noise1d(n, scale, rng):
-    pts = rng.standard_normal(int(n / scale) + 4)
-    xs = np.arange(n) / scale
-    i = xs.astype(int)
-    f = xs - i
-    f = f * f * (3 - 2 * f)
-    return pts[i] * (1 - f) + pts[i + 1] * f
+# ---------------- 鏡頭素材 ----------------
+# shots/*.jpg 由 ref/reference.png 的六格參考圖切出，經 EDSR x3 超解像放大（見 upscale.py）
+SHOT_DIR = os.path.join(HERE, 'shots')
 
 
-def fbm1d(n, rng, base=600.0, oct=7, ridged=True):
-    out = np.zeros(n)
-    amp = 1.0
-    sc = base
-    tot = 0
-    for _ in range(oct):
-        v = noise1d(n, sc, rng)
-        if ridged:
-            v = 1 - np.abs(v)
-        out += v * amp
-        tot += amp
-        amp *= 0.5
-        sc /= 2.1
-    return out / tot
+@lru_cache(None)
+def photo(name):
+    return Image.open(os.path.join(SHOT_DIR, name + '.jpg')).convert('RGB')
+
+
+def cam(name, cx, cy, z, rot=0.0):
+    """以來源比例座標 (cx, cy) 為中心、放大 z 倍取景，回傳 0~1 的 float 陣列"""
+    im = photo(name)
+    sw, sh = im.size
+    z = max(1.0, z)
+    half = 0.5 / z
+    cx = min(max(cx, half), 1 - half)
+    cy = min(max(cy, half), 1 - half)
+    s = sw / z / W  # 每個輸出像素對應的來源像素
+    if rot:
+        c, si = math.cos(rot) * s, math.sin(rot) * s
+        a, b, d, e = c, -si, si, c
+    else:
+        a, b, d, e = s, 0, 0, s
+    x0 = cx * sw - (a * W / 2 + b * H / 2)
+    y0 = cy * sh - (d * W / 2 + e * H / 2)
+    out = im.transform((W, H), Image.AFFINE, (a, b, x0, d, e, y0), resample=Image.BICUBIC)
+    return np.asarray(out, np.float32) / 255.0
+
+
+def move(name, t, t0, t1, a, b, ease=True, shake=0.0, rot=(0.0, 0.0)):
+    """a, b = (cx, cy, z)：由 a 推移到 b"""
+    k = (t - t0) / (t1 - t0)
+    k = smooth(k) * 0.6 + k * 0.4 if ease else k
+    cx, cy, z = (lerp(a[i], b[i], k) for i in range(3))
+    if shake:
+        cx += shake * (math.sin(t * 37) + 0.5 * math.sin(t * 91)) / z
+        cy += shake * (math.cos(t * 29) + 0.5 * math.sin(t * 73)) / z
+    return cam(name, cx, cy, z, lerp(rot[0], rot[1], k))
+
+
+def grade(img, exp=1.0, sat=1.0, temp=0.0, contrast=1.0, tint=(1, 1, 1), lift=0.0):
+    img = img * exp
+    lum = (img[..., :1] * 0.3 + img[..., 1:2] * 0.59 + img[..., 2:3] * 0.11)
+    img = lum + (img - lum) * sat
+    if temp:
+        img = img * np.array([1 + temp, 1 + temp * 0.2, 1 - temp], np.float32)
+    if contrast != 1.0:
+        img = (img - 0.45) * contrast + 0.45
+    img = img * np.array(tint, np.float32) + lift
+    return np.clip(img, 0, 1.2)
+
+
+def mblur(img, amount):
+    """橫向動態模糊（快速轉場用）"""
+    if amount < 2:
+        return img
+    im = Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8))
+    im = im.resize((max(8, int(W / amount)), H), Image.BILINEAR).resize((W, H), Image.BILINEAR)
+    return np.asarray(im, np.float32) / 255.0
+
+
+def gblur(img, r):
+    im = Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8))
+    small = im.resize((W // 4, H // 4), Image.BILINEAR).filter(ImageFilter.GaussianBlur(r / 4))
+    return np.asarray(small.resize((W, H), Image.BILINEAR), np.float32) / 255.0
 
 
 def noise2d(w, h, sx, sy, rng):
@@ -62,209 +103,50 @@ def noise2d(w, h, sx, sy, rng):
     return np.asarray(im, np.float32) / 255.0
 
 
-def mountain_layer(seed, w, h, top, amp, tone, fade, peaks=None, texture=0.25, base=600):
-    """回傳灰階 RGBA 圖：山脊之下填色，底部漸隱入霧。tone: 0 黑 ~ 1 白"""
-    rng = np.random.default_rng(seed)
-    ridge = fbm1d(w, rng, base=base)
-    ridge = (ridge - ridge.min()) / (ridge.max() - ridge.min() + 1e-9)
-    y = top + (1 - ridge) * amp
-    if peaks:
-        xs = np.arange(w)
-        for px, py, pw, sharp in peaks:
-            prof = np.exp(-np.abs((xs - px) / pw) ** sharp)
-            y = np.minimum(y, lerp(y, py + (1 - ridge) * amp * 0.25, prof))
-    yy = np.arange(h)[:, None].astype(np.float32)
-    d = yy - y[None, :]
-    alpha = np.clip(d / 1.5 + 0.5, 0, 1)
-    fadek = np.clip(d / fade, 0, 1)
-    alpha *= 1 - fadek ** 1.4 * 0.97
-    # 皴法紋理：垂直拉長的噪聲
-    tex = noise2d(w, h, 6, 60, rng) * 0.6 + noise2d(w, h, 25, 180, rng) * 0.4
-    col = tone + (tex - 0.5) * texture * (1 - fadek) + fadek * 0.35
-    # 山脊邊緣稍深，像墨線
-    col -= np.exp(-np.clip(d, 0, None) / 6.0) * 0.12
-    col = np.clip(col, 0, 1)
-    rgba = np.zeros((h, w, 4), np.uint8)
-    g = (col * 255).astype(np.uint8)
-    rgba[..., 0] = g
-    rgba[..., 1] = g
-    rgba[..., 2] = g
-    rgba[..., 3] = (alpha * 255).astype(np.uint8)
-    return Image.fromarray(rgba, 'RGBA')
-
-
-def trees_layer(seed, w, h, ground, tone, count=70, hmin=500, hmax=1100):
-    """松樹剪影：樹幹 + 一層層橫向的墨點松針"""
-    rng = np.random.default_rng(seed)
-    im = Image.new('L', (w, h), 0)
-    dr = ImageDraw.Draw(im)
-    for _ in range(count):
-        x = rng.uniform(0, w)
-        th = rng.uniform(hmin, hmax)
-        tw = rng.uniform(6, 18)
-        lean = rng.uniform(-60, 60)
-        top_x = x + lean
-        dr.polygon([(x - tw, ground + 40), (x + tw, ground + 40), (top_x + tw * 0.25, ground - th),
-                    (top_x - tw * 0.25, ground - th)], fill=255)
-        tiers = int(rng.integers(4, 8))
-        for k in range(tiers):
-            f = 0.35 + 0.65 * (k + rng.uniform(0, 0.6)) / tiers
-            yy = ground - th * f
-            xx = x + lean * f
-            span = th * rng.uniform(0.12, 0.28) * (1.25 - f * 0.8)
-            side = rng.choice([-1, 1])
-            # 枝條
-            bx = xx + side * span * rng.uniform(0.6, 1.0)
-            dr.line([(xx, yy + 10), (bx, yy - 6)], fill=255, width=max(2, int(tw * 0.35)))
-            # 松針：橫向扁平的小點群
-            for _ in range(int(span / 6)):
-                px = xx + side * rng.uniform(-0.3, 1.1) * span
-                py = yy + rng.uniform(-span * 0.12, span * 0.08)
-                rw = rng.uniform(10, 34)
-                rh = rng.uniform(3, 8)
-                dr.ellipse([px - rw, py - rh, px + rw, py + rh], fill=255)
-    # 地面與草叢
-    dr.rectangle([0, ground, w, h], fill=255)
-    for _ in range(w // 3):
-        gx = rng.uniform(0, w)
-        gh = rng.uniform(20, 110)
-        dr.line([(gx, ground + 5), (gx + rng.uniform(-25, 25), ground - gh)], fill=255, width=2)
-    a = np.asarray(im.filter(ImageFilter.GaussianBlur(1.0)), np.uint8)
-    rgba = np.zeros((h, w, 4), np.uint8)
-    rgba[..., :3] = int(tone * 255)
-    rgba[..., 3] = a
-    return Image.fromarray(rgba, 'RGBA')
-
-
-def mist_layer(seed, w, h, y0, thick, strength):
-    rng = np.random.default_rng(seed)
-    n = noise2d(w, h, 220, 60, rng) * 0.6 + noise2d(w, h, 70, 25, rng) * 0.4
-    yy = np.arange(h)[:, None]
-    band = np.exp(-((yy - y0) / thick) ** 2)
-    a = np.clip(band * (n * 1.6 - 0.3) * strength, 0, 1)
-    rgba = np.zeros((h, w, 4), np.uint8)
-    rgba[..., :3] = 235
-    rgba[..., 3] = (a * 255).astype(np.uint8)
-    return Image.fromarray(rgba, 'RGBA')
-
-
-def sky(top, bottom, horizon_glow=0.0, hy=0.7):
-    yy = np.linspace(0, 1, H)[:, None]
-    v = lerp(top, bottom, yy ** 0.8) + horizon_glow * np.exp(-((yy - hy) / 0.18) ** 2)
-    v = np.clip(np.repeat(v, W, 1), 0, 1)
-    g = (v * 255).astype(np.uint8)
-    return Image.fromarray(np.dstack([g, g, g, np.full_like(g, 255)]), 'RGBA')
-
-
-# ---------------- 場景（背景層預先生成） ----------------
-LW, LH = 3400, 1500
-
-
 @lru_cache(None)
-def scene_layers(name):
-    if name == 'yongzhou':  # 陰鬱永州
-        return dict(sky=sky(0.55, 0.78), layers=[
-            (mountain_layer(11, LW, LH, 420, 260, 0.62, 380), 0.15),
-            (mist_layer(12, LW, LH, 760, 120, 0.8), 0.25),
-            (mountain_layer(13, LW, LH, 560, 300, 0.42, 420), 0.35),
-            (mist_layer(14, LW, LH, 900, 140, 0.9), 0.5),
-            (mountain_layer(15, LW, LH, 760, 330, 0.2, 500, base=450), 0.7),
-            (mist_layer(16, LW, LH, 1150, 160, 0.8), 0.9),
-        ])
-    if name == 'wander':  # 遊走山水
-        return dict(sky=sky(0.7, 0.9), layers=[
-            (mountain_layer(21, LW, LH, 380, 380, 0.66, 360, base=380), 0.15),
-            (mist_layer(22, LW, LH, 750, 110, 0.8), 0.25),
-            (mountain_layer(23, LW, LH, 520, 420, 0.45, 420, base=330), 0.4),
-            (mist_layer(24, LW, LH, 980, 140, 0.9), 0.55),
-            (mountain_layer(25, LW, LH, 760, 380, 0.18, 500, base=260), 0.8),
-        ])
-    if name == 'forest':
-        return dict(sky=sky(0.6, 0.8), layers=[
-            (mountain_layer(31, LW, LH, 450, 300, 0.6, 400), 0.15),
-            (mist_layer(32, LW, LH, 850, 200, 1.0), 0.3),
-            (trees_layer(33, LW, LH, 1250, 0.45, 45, 450, 850), 0.6),
-            (mist_layer(34, LW, LH, 1150, 150, 0.7), 0.7),
-            (trees_layer(35, LW, LH, 1480, 0.12, 16, 1000, 1450), 1.0),
-        ])
-    if name == 'xishan':  # 西山：一座孤高怪特的山
-        return dict(sky=sky(0.45, 0.85, 0.25, 0.55), layers=[
-            (mountain_layer(41, LW, LH, 820, 160, 0.55, 300,
-                            peaks=[(1700, 180, 260, 1.3), (1450, 420, 150, 1.6), (2000, 380, 170, 1.5)]), 0.1),
-            (mist_layer(42, LW, LH, 900, 120, 1.0), 0.25),
-            (mountain_layer(43, LW, LH, 950, 200, 0.3, 350, base=500), 0.45),
-            (mist_layer(44, LW, LH, 1150, 150, 0.8), 0.6),
-            (mountain_layer(45, LW, LH, 1150, 180, 0.12, 400, base=300), 0.85),
-        ])
-    if name == 'summit':  # 山頂俯瞰：眾山在下
-        lay = []
-        for i in range(7):
-            k = i / 6
-            lay.append((mountain_layer(51 + i, LW, LH, 560 + i * 95, 90 + i * 30, lerp(0.8, 0.3, k), 180 + i * 30,
-                                       base=500 - i * 30, texture=0.15), 0.05 + k * 0.4))
-            lay.append((mist_layer(71 + i, LW, LH, 700 + i * 100, 60 + i * 8, 0.8), 0.07 + k * 0.4))
-        lay.append((mountain_layer(80, LW, LH, 1260, 120, 0.08, 400, base=900, texture=0.3), 1.0))
-        return dict(sky=sky(0.5, 0.88, 0.25, 0.42), layers=lay)
-    if name == 'title':
-        return dict(sky=sky(0.08, 0.2), layers=[
-            (mountain_layer(91, LW, LH, 760, 280, 0.3, 380), 0.2),
-            (mist_layer(92, LW, LH, 1000, 160, 0.5), 0.35),
-            (mountain_layer(93, LW, LH, 950, 260, 0.1, 400), 0.6),
-        ])
-    raise KeyError(name)
+def mist_tex(seed):
+    rng = np.random.default_rng(seed)
+    w = W * 2
+    n = noise2d(w, H, 260, 90, rng) * 0.6 + noise2d(w, H, 90, 35, rng) * 0.4
+    return np.clip(n * 1.8 - 0.55, 0, 1)
 
 
-def render_scene(name, t, cam_x=0.0, cam_y=0.0, zoom=1.0):
-    """cam_x, cam_y 以像素計（遠景乘上視差係數）。回傳灰階 numpy（0~1）"""
-    sc = scene_layers(name)
-    canvas = sc['sky'].copy()
-    for img, par in sc['layers']:
-        z = 1 + (zoom - 1) * (0.3 + par)
-        # 以畫面中心為基準縮放
-        cx = LW / 2 + cam_x * par
-        cy = LH / 2 - 180 + cam_y * par
-        x0 = cx - W / 2 / z
-        y0 = cy - H / 2 / z
-        # 霧層隨時間飄動
-        if id(img) in _mist_ids(name):
-            x0 += t * 25 * (0.5 + par)
-        layer = img.transform((W, H), Image.AFFINE, (1 / z, 0, x0, 0, 1 / z, y0), resample=Image.BILINEAR)
-        canvas.alpha_composite(layer)
-    return np.asarray(canvas.convert('L'), np.float32) / 255.0
+def mist(img, t, y0, thick, strength, color=(1, 1, 1), speed=40.0, seed=1):
+    tex = mist_tex(seed)
+    off = int(t * speed) % W
+    a = tex[:, off:off + W]
+    band = np.exp(-((_yy - H * y0) / (H * thick)) ** 2)
+    a = (a * band * strength)[..., None]
+    img *= 1 - a
+    img += a * np.array(color, np.float32)
 
 
-@lru_cache(None)
-def _mist_ids(name):
-    # 霧層的 RGB 全是 235，藉此辨認
-    return frozenset(id(img) for img, _ in scene_layers(name)['layers']
-                     if np.asarray(img)[..., 0].min() >= 235)
+# 光束：以低解像度計算角度噪聲再放大
+_ly, _lx = np.mgrid[0:H // 6, 0:W // 6].astype(np.float32) * 6
+_ray_rng = np.random.default_rng(5)
+_RAY_K = _ray_rng.integers(5, 60, 12)
+_RAY_P = _ray_rng.uniform(0, 6.28, 12)
 
 
-# ---------------- 調色 ----------------
+def rays(img, sx, sy, t, color, strength, reach=900.0):
+    ang = np.arctan2(_ly - sy, _lx - sx)
+    v = np.zeros_like(ang)
+    for k, p in zip(_RAY_K, _RAY_P):
+        v += np.sin(ang * k + p + t * 0.15 * (1 if k % 2 else -1))
+    v = np.clip(v / 4, 0, 1) ** 2
+    dist = np.sqrt((_lx - sx) ** 2 + (_ly - sy) ** 2)
+    v *= np.exp(-dist / reach)
+    im = Image.fromarray((np.clip(v, 0, 1) * 255).astype(np.uint8)).resize((W, H), Image.BILINEAR)
+    a = np.asarray(im.filter(ImageFilter.GaussianBlur(3)), np.float32)[..., None] / 255.0
+    img += a * np.array(color, np.float32) * strength
 
-def gradmap(gray, stops):
-    """stops: [(pos, (r,g,b)), ...] 灰階映射成顏色"""
-    lut = np.zeros((256, 3), np.float32)
-    xs = np.linspace(0, 1, 256)
-    ps = [s[0] for s in stops]
-    for c in range(3):
-        lut[:, c] = np.interp(xs, ps, [s[1][c] for s in stops])
-    idx = np.clip(gray * 255, 0, 255).astype(np.uint8)
-    return lut[idx] / 255.0
 
-
-PAL = {
-    'cold': [(0, (8, 12, 18)), (0.45, (60, 72, 82)), (0.8, (150, 162, 168)), (1, (205, 212, 214))],
-    'rain': [(0, (5, 8, 14)), (0.5, (45, 55, 66)), (1, (140, 150, 160))],
-    'paper': [(0, (22, 18, 16)), (0.4, (92, 84, 72)), (0.8, (200, 190, 168)), (1, (238, 230, 210))],
-    'dream': [(0, (30, 20, 28)), (0.5, (140, 110, 120)), (1, (245, 225, 215))],
-    'dawn': [(0, (10, 14, 26)), (0.45, (70, 70, 90)), (0.75, (200, 160, 130)), (1, (255, 225, 180))],
-    'fire': [(0, (20, 5, 0)), (0.4, (120, 40, 10)), (0.8, (240, 140, 60)), (1, (255, 220, 160))],
-    'gold': [(0, (14, 16, 26)), (0.35, (58, 62, 80)), (0.72, (205, 150, 95)), (1, (250, 220, 170))],
-    'dusk': [(0, (6, 5, 18)), (0.4, (42, 30, 70)), (0.7, (140, 72, 90)), (1, (220, 140, 110))],
-    'night': [(0, (2, 4, 12)), (0.4, (14, 24, 50)), (0.8, (60, 85, 130)), (1, (150, 180, 220))],
-    'ink': [(0, (4, 4, 6)), (0.5, (30, 28, 30)), (1, (90, 80, 70))],
-}
+def darken_from_top(img, k, soft=0.35):
+    """暮色「自遠而至」：畫面上方（遠處）先暗"""
+    front = lerp(-soft, 1 + soft, k)
+    m = np.clip((front - _yy / H) / soft, 0, 1)[..., None]
+    night = grade(img, exp=0.35, sat=0.5, temp=-0.25, tint=(0.8, 0.85, 1.15))
+    return img * (1 - m) + night * m
 
 
 # ---------------- 特效 ----------------
@@ -463,119 +345,155 @@ GOLD = (240, 205, 140)
 FLASHES = [7.5, 22.0, 23.2, 24.4, 25.6, 26.8, 28.0, 29.2, 38.0, 51.0, 52.2, 53.4, 54.6, 58.2, 85.0]
 
 
+MONTAGE = [  # 上高山、入深林、窮迴谿、幽泉怪石、無遠不到、披草而坐、傾壺而醉
+    ('climb', (0.80, 0.34, 1.8), (0.78, 0.24, 1.95), dict(temp=0.05)),
+    ('bamboo', (0.25, 0.30, 1.7), (0.38, 0.30, 1.8), dict(exp=1.25, sat=0.9)),
+    ('pavilion', (0.80, 0.72, 1.9), (0.70, 0.70, 2.0), dict()),
+    ('boat', (0.68, 0.30, 1.9), (0.60, 0.32, 2.0), dict()),
+    ('summit', (0.45, 0.55, 1.3), (0.45, 0.55, 1.15), dict()),
+    ('dusk', (0.84, 0.62, 2.0), (0.84, 0.60, 1.8), dict(exp=1.15)),
+    ('dusk', (0.76, 0.52, 2.5), (0.77, 0.52, 2.2), dict(exp=1.2, temp=0.12)),
+]
+
+
 def scene_bg(t):
-    """回傳 (rgb float 陣列, 是否加顆粒)"""
     if t < 3.0:
         return None
-    if t < 11.5:
+    if t < 7.5:
+        # 長安新星：金光燦爛
         lt = t - 3.0
-        g = render_scene('yongzhou', t, cam_x=-400 + lt * 40, cam_y=40 - lt * 4, zoom=1.0 + lt * 0.006)
-        pal = 'cold' if t < 7.5 else 'rain'
-        img = gradmap(g, PAL[pal])
-        img *= smooth((t - 3.0) / 2.0)
-        if t >= 7.5:
-            particles(img, t, 'rain', 1, 320, 0.8)
+        img = move('summit', t, 3.0, 7.5, (0.42, 0.34, 2.2), (0.42, 0.36, 1.7))
+        img = grade(img, exp=1.05, sat=1.1, temp=0.08)
+        rays(img, W * 0.5, H * 0.3, t, (1.0, 0.8, 0.5), 0.35)
+        return img * smooth(lt / 1.5)
+    if t < 11.5:
+        # 被貶千里：竹林冷雨
+        img = move('bamboo', t, 7.5, 11.5, (0.5, 0.52, 1.1), (0.5, 0.58, 1.35))
+        img = grade(img, exp=0.85, sat=0.45, temp=-0.12, contrast=1.1)
+        mist(img, t, 0.75, 0.25, 0.35, (0.6, 0.66, 0.72), 30, 1)
+        particles(img, t, 'rain', 1, 380, 0.9)
         return img
     if t < 16.6:
-        lt = t - 11.5
-        g = render_scene('yongzhou', t, cam_x=300 + lt * 25, cam_y=-120, zoom=1.12 - lt * 0.01)
-        img = gradmap(g, PAL['rain'])
-        particles(img, t, 'rain', 2, 200, 0.5)
+        # 恆惴慄：逼近孤身背影
+        img = move('bamboo', t, 11.5, 16.6, (0.5, 0.56, 2.2), (0.5, 0.58, 2.6), shake=0.0015)
+        img = grade(img, exp=0.7, sat=0.35, temp=-0.15, contrast=1.15)
+        particles(img, t, 'rain', 2, 260, 0.6)
         return img
     if t < 22.0:
-        lt = t - 16.6
-        g = render_scene('wander', t, cam_x=-600 + lt * 110, cam_y=-40, zoom=1.0 + lt * 0.01)
-        return gradmap(g, PAL['paper'])
+        # 開始遊走：舟行江上
+        img = move('boat', t, 16.6, 22.0, (0.30, 0.52, 1.35), (0.55, 0.48, 1.1))
+        img = grade(img, exp=1.0, sat=0.8, temp=0.03)
+        mist(img, t, 0.55, 0.18, 0.45, (0.92, 0.93, 0.95), 55, 2)
+        return img
     if t < 30.4:
-        # 蒙太奇：每 1.2 秒換一個景，快速推移
-        idx = int((t - 22.0) / 1.2)
-        lt = (t - 22.0) - idx * 1.2
-        shots = [('wander', 'paper', -900, -200, 1.3), ('forest', 'paper', 200, 0, 1.0),
-                 ('wander', 'cold', 500, 100, 1.1), ('yongzhou', 'paper', -200, -250, 1.4),
-                 ('wander', 'paper', 900, -100, 1.0), ('forest', 'dawn', -600, 100, 1.1),
-                 ('xishan', 'dream', 400, 150, 1.0)]
-        name, pal, cx, cy, z = shots[min(idx, 6)]
-        g = render_scene(name, t, cam_x=cx + lt * 260 * (1 if idx % 2 else -1), cam_y=cy, zoom=z + lt * 0.08)
-        return gradmap(g, PAL[pal])
+        idx = min(6, int((t - 22.0) / 1.2))
+        t0 = 22.0 + idx * 1.2
+        name, a, b, g = MONTAGE[idx]
+        img = grade(move(name, t, t0, t0 + 1.2, a, b, ease=False), **g)
+        lt = t - t0
+        if lt < 0.12:
+            img = mblur(img, 40 * (1 - lt / 0.12))
+        return img
     if t < 33.0:
+        # 醉臥夢中
         lt = t - 30.4
-        g = render_scene('wander', t, cam_x=200 + lt * 30, cam_y=-80, zoom=1.2 + lt * 0.02)
-        im = Image.fromarray((g * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(6 + 4 * math.sin(lt * 2)))
-        img = gradmap(np.asarray(im, np.float32) / 255.0, PAL['dream'])
-        particles(img, t, 'dust', 5, 120, 0.8)
+        img = move('dusk', t, 30.4, 33.0, (0.7, 0.5, 1.5), (0.7, 0.5, 1.7), rot=(0.0, 0.02))
+        img = grade(gblur(img, 10 + 6 * math.sin(lt * 2)), exp=1.15, sat=0.7, tint=(1.08, 0.92, 1.02))
+        particles(img, t, 'dust', 5, 140, 0.8)
         return img
     if t < 38.0:
-        lt = t - 33.0
-        g = render_scene('wander', t, cam_x=-300 - lt * 60, cam_y=-150 + lt * 20, zoom=1.0 - lt * 0.01)
-        return gradmap(g, PAL['paper'])
+        # 以為看遍了：拉遠
+        img = move('boat', t, 33.0, 38.0, (0.6, 0.45, 1.6), (0.5, 0.5, 1.0))
+        img = grade(img, exp=0.95, sat=0.55, temp=0.02)
+        mist(img, t, 0.5, 0.2, 0.3, (0.9, 0.9, 0.9), 35, 3)
+        return img
+    if t < 43.5:
+        img = np.zeros((H, W, 3), np.float32)
+        if 39.0 < t < 43.3:
+            # 驚鴻一瞥：幽暗中浮現的怪特之山
+            k = smooth((t - 39.0) / 2.5) * smooth((43.3 - t) / 0.8)
+            p = move('pavilion', t, 39.0, 43.3, (0.63, 0.40, 2.1), (0.63, 0.38, 1.8))
+            img = grade(p, exp=0.4, sat=0.3, temp=-0.05, contrast=1.3) * k
+        return img
     if t < 47.0:
         img = np.zeros((H, W, 3), np.float32)
-        if t > 43.5:
-            # 墨暈慢慢化開
-            k = smooth((t - 43.5) / 3.5)
-            d = np.sqrt((_xx - W / 2) ** 2 + ((_yy - H / 2) * 1.6) ** 2)
-            img += (np.exp(-(d / (200 + 600 * k)) ** 2) * 0.07 * k)[..., None] * np.array([1, 0.95, 0.85])
+        k = smooth((t - 43.5) / 3.5)
+        d = np.sqrt((_xx - W / 2) ** 2 + ((_yy - H / 2) * 1.6) ** 2)
+        img += (np.exp(-(d / (200 + 600 * k)) ** 2) * 0.07 * k)[..., None] * np.array([1, 0.95, 0.85])
         return img
     if t < 51.0:
+        # 坐法華西亭，望西山：由人物背影推向遠山
         lt = t - 47.0
-        g = render_scene('xishan', t, cam_x=-150 + lt * 25, cam_y=-40 + lt * 12, zoom=1.0 + lt * 0.035)
-        img = gradmap(g, PAL['dawn'])
-        add_glow(img, W * 0.52 + 20 * lt, H * 0.22, 380, (1.0, 0.75, 0.45), 0.55 * smooth(lt / 1.5))
-        img *= smooth(lt / 1.2)
-        return img
+        img = move('pavilion', t, 47.0, 51.0, (0.40, 0.55, 1.25), (0.58, 0.45, 1.6))
+        img = grade(img, exp=1.05, sat=1.05, temp=0.05)
+        rays(img, W * 0.75, H * 0.05, t, (1.0, 0.85, 0.6), 0.45)
+        return img * smooth(lt / 1.0)
+    if t < 52.2:
+        img = move('boat', t, 51.0, 52.2, (0.35, 0.72, 1.6), (0.25, 0.68, 1.9), ease=False)
+        return grade(img, exp=1.0, sat=0.95)
+    if t < 53.4:
+        img = move('climb', t, 52.2, 53.4, (0.30, 0.58, 1.5), (0.36, 0.56, 1.7), ease=False, shake=0.004)
+        return grade(img, sat=0.95, contrast=1.1)
     if t < 54.6:
-        lt = t - 51.0
-        pal = 'paper' if t < 53.4 else 'fire'
-        g = render_scene('forest', t, cam_x=-800 + lt * 420, cam_y=40, zoom=1.08)
-        img = gradmap(g, PAL[pal])
-        if t >= 53.4:
-            particles(img, t, 'embers', 7, 220, 1.0)
-            add_glow(img, W * 0.5, H * 1.05, 700, (1.0, 0.4, 0.1), 0.45)
+        img = move('climb', t, 53.4, 54.6, (0.65, 0.70, 1.7), (0.60, 0.68, 1.9), ease=False, shake=0.005)
+        img = grade(img, exp=0.8, sat=0.6, tint=(1.35, 0.8, 0.45), contrast=1.2)
+        particles(img, t, 'embers', 7, 260, 1.0)
+        add_glow(img, W * 0.5, H * 1.05, 700, (1.0, 0.4, 0.1), 0.5)
         return img
     if t < 58.2:
-        # 仰攀：鏡頭由下往上掃
-        lt = t - 54.6
-        k = smooth(lt / 3.2)
-        g = render_scene('xishan', t, cam_x=0, cam_y=420 - k * 700, zoom=1.35 - k * 0.2)
-        img = gradmap(g, PAL['dawn'])
-        add_glow(img, W * 0.5, H * (0.9 - k * 0.8), 500, (1.0, 0.8, 0.5), 0.4 * k)
+        # 窮山之高：仰望峭壁，鏡頭上搖
+        k = (t - 54.6) / 3.6
+        img = move('climb', t, 54.6, 58.2, (0.83, 0.62, 2.2), (0.83, 0.22, 2.0), shake=0.001)
+        img = grade(img, exp=1.0 + 0.3 * k, sat=1.0, temp=0.06)
+        rays(img, W * 0.8, -H * 0.1, t, (1.0, 0.9, 0.7), 0.35 * k)
         if t > 57.6:
             img *= 1 - smooth((t - 57.6) / 0.3)
         return img
+    if t < 61.5:
+        # 登頂：全景
+        img = move('summit', t, 58.2, 61.5, (0.6, 0.45, 1.35), (0.55, 0.5, 1.1))
+        img = grade(img, exp=1.05, sat=1.1, temp=0.04)
+        rays(img, W * 0.42, H * 0.28, t, (1.0, 0.8, 0.5), 0.3)
+        mist(img, t, 0.8, 0.2, 0.25, (1.0, 0.92, 0.82), 25, 4)
+        return img
+    if t < 65.5:
+        # 數州之土壤，皆在衽席之下：俯瞰雲海
+        img = move('summit', t, 61.5, 65.5, (0.18, 0.70, 1.8), (0.42, 0.72, 1.6))
+        img = grade(img, exp=1.05, sat=1.1, temp=0.05)
+        mist(img, t, 0.7, 0.3, 0.35, (1.0, 0.93, 0.85), 45, 5)
+        return img
+    if t < 70.5:
+        # 悠悠乎、洋洋乎：從人物背影拉遠
+        img = move('summit', t, 65.5, 70.5, (0.80, 0.40, 2.0), (0.5, 0.5, 1.0))
+        img = grade(img, exp=1.05, sat=1.1, temp=0.06)
+        rays(img, W * 0.42, H * 0.28, t, (1.0, 0.8, 0.5), 0.3 * smooth((t - 65.5) / 3))
+        particles(img, t, 'dust', 9, 90, 0.5)
+        return img
+    if t < 75.0:
+        # 蒼然暮色，自遠而至
+        k = smooth((t - 70.5) / 4.5)
+        img = move('dusk', t, 70.5, 75.0, (0.55, 0.45, 1.1), (0.62, 0.5, 1.25))
+        img = grade(img, exp=1.05, sat=1.05)
+        return darken_from_top(img, k * 0.85)
     if t < 84.0:
-        lt = t - 58.2
-        # 山頂俯瞰：緩慢推近，視角微微下移
-        g = render_scene('summit', t, cam_x=-200 + lt * 18, cam_y=-60 + lt * 5, zoom=1.0 + lt * 0.006)
-        if t < 70.5:
-            img = gradmap(g, PAL['gold'])
-            sun = (W * 0.78, H * 0.2 + lt * 4)
-            add_glow(img, *sun, 380, (1.0, 0.8, 0.5), 0.5)
-            particles(img, t, 'dust', 9, 90, 0.5)
-        elif t < 75.0:
-            k = smooth((t - 70.5) / 4.5)
-            # 暮色「自遠而至」：遠處先暗
-            a = gradmap(g, PAL['gold'])
-            b = gradmap(g, PAL['dusk'])
-            front = lerp(-0.2, 1.2, k)
-            m = np.clip((front - _yy / H) * 3, 0, 1)[..., None]
-            img = a * (1 - m) + b * m
-            img *= 1 - 0.35 * k
-            add_glow(img, W * 0.78, H * 0.2 + lt * 4 + k * 250, 380, (1.0, 0.55, 0.35), 0.5 * (1 - k * 0.8))
-        else:
-            k = smooth((t - 75.0) / 2.0)
-            img = gradmap(g, PAL['dusk']) * 0.65 * (1 - k) + gradmap(g, PAL['night']) * k
-            particles(img, t, 'stars', 11, 380, k)
-            add_glow(img, W * 0.22, H * 0.2, 160, (0.8, 0.88, 1.0), 0.35 * k)
-            if t > 83.0:
-                img *= 1 - smooth((t - 83.0) / 1.0)
+        # 夜：心凝形釋
+        k = smooth((t - 75.0) / 2.0)
+        img = move('dusk', t, 75.0, 84.0, (0.60, 0.50, 1.3), (0.63, 0.52, 1.45))
+        img = grade(img, exp=lerp(0.55, 0.45, k), sat=0.55, temp=-0.25, tint=(0.8, 0.88, 1.2), contrast=1.1)
+        sky_mask = np.clip((H * 0.42 - _yy) / (H * 0.1), 0, 1)[..., None]
+        stars = np.zeros_like(img)
+        particles(stars, t, 'stars', 11, 420, k)
+        img += stars * sky_mask
+        add_glow(img, W * 0.2, H * 0.2, 160, (0.8, 0.88, 1.0), 0.35 * k)
+        mist(img, t, 0.68, 0.15, 0.3 * k, (0.5, 0.58, 0.75), 20, 6)
+        if t > 83.0:
+            img *= 1 - smooth((t - 83.0) / 1.0)
         return img
     if t < 85.0:
         return np.zeros((H, W, 3), np.float32)
     if t < 98.0:
-        lt = t - 85.0
-        g = render_scene('title', t, cam_x=-100 + lt * 15, cam_y=0, zoom=1.05 + lt * 0.004)
-        img = gradmap(g, PAL['ink'])
-        add_glow(img, W * 0.5, H * 0.45, 700, (0.9, 0.65, 0.3), 0.18)
+        img = move('summit', t, 85.0, 98.0, (0.5, 0.5, 1.25), (0.5, 0.5, 1.05))
+        img = grade(gblur(img, 6), exp=0.32, sat=0.7, temp=0.1)
         particles(img, t, 'dust', 13, 140, 0.6)
         if t > 97.0:
             img *= 1 - smooth((t - 97.0) / 1.0)
@@ -588,12 +506,12 @@ def overlay_text(img, t):
     # 開場
     draw_text(img, t, 1.2, 3.4, '唐 · 永貞元年', S, 40, GREY, y=0.5, track=0.5, weight=400)
     draw_text(img, t, 3.6, 7.3, '他，曾是長安最耀眼的新星', S, 64, WHITE, weight=600)
-    draw_text(img, t, 7.5, 11.3, '一夜之間　被貶千里', S, 92, WHITE, weight=900, fin=0.15, zoom=(1.08, 1.0),
+    draw_text(img, t, 7.5, 11.3, '一夜之間　被貶千里', S, 92, WHITE, y=0.34, weight=900, fin=0.15, zoom=(1.08, 1.0),
               punch=True, glow=10, glow_col=(120, 140, 170))
-    draw_text(img, t, 8.4, 11.3, '永州司馬', S, 40, GREY, y=0.62, track=0.6, weight=500)
+    draw_text(img, t, 8.4, 11.3, '永州司馬', S, 40, GREY, y=0.45, track=0.6, weight=500)
     # 原文一
-    draw_text(img, t, 11.8, 16.4, '自余為僇人，居是州，恆惴慄。', K, 84, WHITE, y=0.46, track=0.08)
-    draw_text(img, t, 12.6, 16.4, '自從我成了罪人，住在這裏，常常憂懼不安', S, 34, GREY, y=0.60, weight=400)
+    draw_text(img, t, 11.8, 16.4, '自余為僇人，居是州，恆惴慄。', K, 84, WHITE, y=0.28, track=0.08)
+    draw_text(img, t, 12.6, 16.4, '自從我成了罪人，住在這裏，常常憂懼不安', S, 34, GREY, y=0.39, weight=400)
     # 遊走
     draw_text(img, t, 16.8, 21.8, '於是，他開始漫無目的地遊走', S, 60, WHITE, weight=600)
     draw_text(img, t, 17.6, 21.8, '施施而行　漫漫而遊', K, 44, GOLD, y=0.62, track=0.3)

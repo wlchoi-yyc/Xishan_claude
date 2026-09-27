@@ -1,6 +1,7 @@
 #!/bin/sh
 # 生成《始得西山宴遊記》預告片：trailer/xishan_trailer.mp4（1920x1080，30fps，約 102 秒）
 # 需要：python3、pip install numpy pillow scipy imageio-ffmpeg
+# 畫面素材 shots/*.jpg 已放入倉庫；如要由 ref/reference.png 重新生成，執行 upscale.py
 set -e
 cd "$(dirname "$0")"
 mkdir -p fonts
