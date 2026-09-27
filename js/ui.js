@@ -109,10 +109,11 @@ export async function whisper(text, { who = '', hold = 4 } = {}) {
 export function hideWhisper() { whisperEl.classList.remove('show'); }
 
 // ================= 章節卡、目標、通知 =================
-export async function chapterCard(num, name, sub) {
+export async function chapterCard(num, name, sub, { small = false } = {}) {
   const el = $('chapterCard');
   el.querySelector('.ccNum').textContent = num;
   el.querySelector('.ccName').textContent = name;
+  el.querySelector('.ccName').classList.toggle('small', small); // small：與低語字幕同一字號
   el.querySelector('.ccSub').textContent = sub || '';
   el.classList.remove('hidden');
   void el.offsetWidth;

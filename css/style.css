@@ -193,6 +193,8 @@ button { font-family: var(--serif); cursor: pointer; }
 #chapterCard.show { opacity: 1; }
 .ccNum { font-size: 18px; letter-spacing: 8px; color: var(--gold); }
 .ccName { font-size: clamp(36px, 6vw, 64px); letter-spacing: 14px; margin: 10px 0; text-shadow: 0 2px 20px #000; }
+/* 與 #whisper 同一字號（終章「原來，不只是你在尋找柳宗元……」） */
+.ccName.small { font-size: clamp(19px, 2.3vw, 26px); letter-spacing: .12em; padding: 0 24px; text-align: center; }
 .ccSub { font-size: 18px; letter-spacing: 4px; color: #e8dcc2; text-shadow: 0 1px 6px #000; }
 
 /* ---------- 大按鈕 ---------- */

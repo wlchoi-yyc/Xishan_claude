@@ -639,7 +639,7 @@ async function epilogue(w, liu) {
   ui.journalAdd('心境', '從前未曾真正遊賞；真正的「遊」，從這一次西山之遊才開始。', '然後知吾嚮之未始遊，遊於是乎始');
   await wait(8);
   await ui.hideCaption();
-  await ui.chapterCard('', '原來，不只是你在尋找柳宗元......', '');
+  await ui.chapterCard('', '原來，不只是你在尋找柳宗元......', '', { small: true });
   await ui.whisper('也是柳宗元在西山，重新找到了自己。', { hold: 7 });
   await ui.caption('故為之文以志。是歲，元和四年也。', { gloss: '所以寫下這篇文章記錄這件事。這一年，是元和四年（公元 809 年）。', hold: 6 });
   ui.litText('故為之文以志');
