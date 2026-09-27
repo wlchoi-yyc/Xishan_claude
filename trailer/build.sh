@@ -12,6 +12,10 @@ FFMPEG=$(python3 -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe(
 python3 music.py music.wav
 python3 video.py | "$FFMPEG" -y -loglevel error -f rawvideo -pix_fmt rgb24 -s 1920x1080 -r 30 -i - -i music.wav \
   -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p -profile:v high -tune film \
-  -af loudnorm=I=-14:TP=-1.0:LRA=11 -c:a aac -b:a 256k -ar 48000 -shortest -movflags +faststart xishan_trailer.mp4
-rm -f music.wav
+  -af loudnorm=I=-14:TP=-1.0:LRA=11 -c:a aac -b:a 256k -ar 48000 -shortest master.mp4
+# 顆粒質感令檔案很大：兩遍編碼壓到約 85MB（低於 GitHub 單檔 100MB 上限）
+"$FFMPEG" -y -loglevel error -i master.mp4 -c:v libx264 -preset slow -b:v 6500k -pass 1 -passlogfile x264pass -an -f null /dev/null
+"$FFMPEG" -y -loglevel error -i master.mp4 -c:v libx264 -preset slow -b:v 6500k -maxrate 12M -bufsize 16M -pass 2 -passlogfile x264pass \
+  -pix_fmt yuv420p -profile:v high -c:a copy -movflags +faststart xishan_trailer.mp4
+rm -f music.wav master.mp4 x264pass*
 echo "完成：$(pwd)/xishan_trailer.mp4"
