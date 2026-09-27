@@ -59,6 +59,33 @@ function forestHeight(x, z) {
   return h;
 }
 
+// 嶙峋石堆：用素材岩石（未載入時用程式石頭）一塊疊一塊，每塊方向、大小不同，頂部參差
+function craggyRock(H, seed) {
+  const r = rng(seed * 7 + 1), g = new THREE.Group();
+  const n = 3 + Math.floor(r() * 2);
+  let y = 0;
+  for (let k = 0; k < n; k++) {
+    const f = 1 - k / (n + 0.5);                // 愈上愈細
+    const size = H * 0.26 * f * (0.85 + r() * 0.3);
+    const col = ['#e6dfd0', '#ddd6c6', '#efe8d9'][k % 3];
+    const rock = natureRock(size, col, seed * 13 + k) || makeRock(size, '#9a9383', seed * 13 + k);
+    rock.scale.set(0.8 + r() * 0.5, 1.1 + r() * 0.6, 0.8 + r() * 0.5);
+    const hgt = 2 * size * rock.scale.y;
+    rock.position.set((r() - 0.5) * size * 0.8, y + hgt * 0.45, (r() - 0.5) * size * 0.8);
+    rock.rotation.set((r() - 0.5) * 0.6, r() * 6.28, (r() - 0.5) * 0.6);
+    g.add(rock);
+    y += hgt * 0.72;
+  }
+  // 旁邊散落兩三塊碎石
+  for (let k = 0; k < 3; k++) {
+    const size = H * 0.08 * (0.6 + r() * 0.6), a = r() * 6.28, d = H * 0.3 + r() * H * 0.15;
+    const rock = natureRock(size, '#d8d1c2', seed * 29 + k) || makeRock(size, '#8f897b', seed * 29 + k);
+    rock.position.set(Math.cos(a) * d, size * 0.6, Math.sin(a) * d); rock.rotation.y = r() * 6.28;
+    g.add(rock);
+  }
+  return g;
+}
+
 function buildForest() {
   const B = baseScene({ fog: '#cfd8d6', fogNear: 25, fogFar: 230, sky: { top: '#76a6d2', sunDir: [0.55, 0.32, -0.6], sunColor: '#fff0d8' }, hemi: ['#dfeaf4', '#5a5440', 1.15], sun: ['#ffeccc', 1.9] });
   const { scene } = B;
@@ -142,7 +169,9 @@ function buildForest() {
   scene.add(makeTrees(reeds, forestHeight));
   for (let i = 0; i < 4; i++) {
     const a = i * 1.6, x = ZONES.rocks.x + Math.cos(a) * 9, z = ZONES.rocks.z + Math.sin(a) * 9;
-    const pn = makePinnacle(4 + rr() * 4, 60 + i, { width: 0.3 }); pn.position.set(x, forestHeight(x, z) - 0.5, z); scene.add(pn);
+    const H = 4 + rr() * 4;
+    // 嶙峋石堆：幾塊不規則岩石斜疊而成（取代原本圓頂的石柱）
+    const pn = craggyRock(H, 60 + i); pn.position.set(x, forestHeight(x, z) - 0.4, z); scene.add(pn);
   }
   const clouds = makeClouds({ count: 22, rMin: 300, rMax: 900, yMin: 140, yMax: 240, size: [160, 320], seed: 13 });
   const mist = makeMist({ count: 18, center: [30, 0], rMax: 110, heightAt: forestHeight, lift: 1.5, size: [25, 50], opacity: 0.22, seed: 14 });
