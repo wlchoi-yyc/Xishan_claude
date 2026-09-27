@@ -1,0 +1,6 @@
+本資料夾的樹木、灌木、石頭模型及貼圖取自：
+Quaternius — Stylized Nature MegaKit（Standard 免費版）
+https://quaternius.com/packs/stylizednaturemegakit.html
+授權：CC0 1.0（公有領域，可自由使用、修改，毋須註明出處；此處註明以示尊重）
+
+已作的修改：合併為精簡二進位格式（nature.bin / nature.json）、縮細貼圖、灌木葉轉為綠色、岩石貼圖降低飽和度。

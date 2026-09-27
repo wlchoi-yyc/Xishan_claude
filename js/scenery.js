@@ -59,6 +59,13 @@ export function makeMist({ count = 20, center = [0, 0], rMin = 0, rMax = 300, y 
   const group = new THREE.Group();
   const material = new THREE.MeshBasicMaterial({ map: mistTexture(), color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide });
   const geo = new THREE.PlaneGeometry(1, 1); geo.rotateX(-Math.PI / 2);
+  // 從側面（視線貼近霧片高度）看時霧片會變成一條橫帶，所以按視線角度淡出
+  material.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'varying vec3 vMistWP;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vMistWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = 'varying vec3 vMistWP;\n' + sh.fragmentShader.replace('#include <opaque_fragment>',
+      'diffuseColor.a *= smoothstep(0.02, 0.22, abs(normalize(cameraPosition - vMistWP).y));\n#include <opaque_fragment>');
+  };
+  material.customProgramCacheKey = () => 'mist-v1';
   const items = [];
   for (let i = 0; i < count; i++) {
     const a = r() * Math.PI * 2, d = rMin + Math.sqrt(r()) * (rMax - rMin);

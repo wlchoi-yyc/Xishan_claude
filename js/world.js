@@ -1,5 +1,6 @@
 // 世界建構工具：地形、樹木、石頭、水、天空、人物、器物
 import { THREE, E } from './engine.js';
+import { nature, TREE_ASSETS, makeNatureLOD } from './nature.js';
 
 // ---------------- 亂數與雜訊 ----------------
 export function rng(seed = 1) {
@@ -371,10 +372,8 @@ function treeGeometry(type) {
 }
 // 植物材質：枝葉隨風輕擺（愈高擺得愈多，每棵相位不同），並給背光的葉底一點透光，免得變成黑色一團
 const _windMats = {};
-export function windMat(amp = 0.004) {
-  const key = String(amp);
-  if (_windMats[key]) return _windMats[key];
-  const m = vcMat();
+/** 為材質加上隨風擺動；floor：葉底按天光保留少許亮度 */
+export function applyWind(m, amp = 0.004, floor = true) {
   m.onBeforeCompile = (sh) => {
     sh.uniforms.wTime = WATER_U.wTime;
     sh.uniforms.windAmp = { value: amp };
@@ -391,17 +390,22 @@ export function windMat(amp = 0.004) {
         transformed.x += wsw * windAmp * wh * wh;
         transformed.z += wsw * 0.45 * windAmp * wh * wh;
       }`);
-    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>',
+    if (floor) sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>',
       '#if NUM_HEMI_LIGHTS > 0\n outgoingLight = max(outgoingLight, diffuseColor.rgb * hemisphereLights[0].skyColor * 0.28);\n#endif\n#include <opaque_fragment>');
   };
-  m.customProgramCacheKey = () => 'wind-' + key;
-  _windMats[key] = m;
+  m.customProgramCacheKey = () => 'wind-' + amp + (floor ? 'f' : '') + (m.map ? 'm' : '');
   return m;
 }
+export function windMat(amp = 0.004) {
+  const key = String(amp);
+  if (_windMats[key]) return _windMats[key];
+  return (_windMats[key] = applyWind(vcMat(), amp, true));
+}
 /** 散佈樹木：items [{x,z,s,rot,type}] */
-export function makeTrees(items, heightAt, { tint = true } = {}) {
+export function makeTrees(items, heightAt, { tint = true, hq = false } = {}) {
   const group = new THREE.Group();
   const byType = {};
+  const lodEntries = [];
   for (const it of items) (byType[it.type] = byType[it.type] || []).push(it);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
   const c = new THREE.Color();
@@ -409,6 +413,8 @@ export function makeTrees(items, heightAt, { tint = true } = {}) {
     const list = byType[type];
     const sway = { bamboo: 0.007, reed: 0.06, bush: 0.012 }[type] ?? 0.0035;
     const mesh = new THREE.InstancedMesh(treeGeometry(type), windMat(sway), list.length);
+    const useHQ = hq && nature.ready && TREE_ASSETS[type];
+    const mats = [];
     list.forEach((it, i) => {
       q.setFromEuler(new THREE.Euler(it.tilt ?? 0, it.rot ?? 0, 0));
       s.set(it.s, it.s * (it.sy ?? 1), it.s);
@@ -416,10 +422,14 @@ export function makeTrees(items, heightAt, { tint = true } = {}) {
       m4.compose(p, q, s);
       mesh.setMatrixAt(i, m4);
       if (tint) { const r1 = ((i * 9301 + 49297) % 233280) / 233280, r2 = ((i * 4271 + 1231) % 7919) / 7919; c.setRGB(0.82 + r1 * 0.3, 0.84 + r1 * 0.26 + (r2 - 0.5) * 0.08, 0.82 + r1 * 0.24 - (r2 - 0.5) * 0.06); mesh.setColorAt(i, c); }
+      if (useHQ) { it.y = p.y + 0.1; mats.push(m4.clone()); }
     });
     mesh.instanceMatrix.needsUpdate = true;
     group.add(mesh);
+    if (useHQ) lodEntries.push({ type, items: list, proc: mesh, mats });
   }
+  // 近處換成現成素材樹（只在素材已載入時）
+  if (lodEntries.length) group.add(makeNatureLOD(lodEntries));
   return group;
 }
 export function scatter(count, seed, accept, area) {

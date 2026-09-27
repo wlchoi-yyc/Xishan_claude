@@ -16,6 +16,8 @@
   - `npx http-server -p 8000`
 - **離線單檔版**：執行 `npm run build`（需要 Node.js）後，`dist/` 資料夾內的 `index.html` 可直接雙擊開啟。
 
+第一關附近的樹木、灌木和怪石使用 Quaternius「Stylized Nature MegaKit」（CC0）現成素材（`assets/nature/`，約 0.8MB）；只在玩家附近使用，畫面持續偏慢時會自動改回程式生成的樹。網址加 `?nature=0` 可關閉素材作比較。離線單檔版不載入素材。
+
 Three.js 已放在 `lib/`，毋須連接網絡（只有書法字型會嘗試從 Google Fonts 載入，失敗時自動使用系統字型）。
 
 ### 操作

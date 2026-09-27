@@ -7,6 +7,7 @@ import {
   makeFootprints, pathPoints, makeRibbon, makeWater, makePerson, fbm, noise2, rng, mixHex, smoothstep, lam, textCanvas, makeStaff,
 } from '../world.js';
 import { waterize } from '../world.js';
+import { nature, natureMesh } from '../nature.js';
 import { makeClouds, makeMist, makeGrassField, makePinnacle, makeFarRanges } from '../scenery.js';
 import { autumnGround } from './pavilion.js';
 
@@ -86,27 +87,45 @@ function buildForest() {
     return { type: dense ? (t < 0.5 ? 'pine' : t < 0.85 ? 'broad' : 'song') : (t < 0.3 ? 'pine' : t < 0.55 ? 'broad' : t < 0.72 ? 'maple' : t < 0.82 ? 'ginkgo' : t < 0.92 ? 'bamboo' : 'song'), s: dense ? 1.1 + r() * 0.8 : 0.8 + r() * 0.7 };
   }, { x0: -150, x1: 150, z0: -150, z1: 150 });
   // 高山路徑附近保持開闊
-  scene.add(makeTrees(trees, forestHeight));
+  scene.add(makeTrees(trees, forestHeight, { hq: true }));
   const bushes = scatter(120, 22, (x, z) => !avoid(x, z), { x0: -120, x1: 120, z0: -120, z1: 120 }).map(b => Object.assign(b, { type: 'bush', s: 0.6 + b.s * 0.4 }));
-  scene.add(makeTrees(bushes, forestHeight));
+  scene.add(makeTrees(bushes, forestHeight, { hq: true }));
 
   // 怪石
   const rr = rng(7);
   for (let i = 0; i < 9; i++) {
     const s = 1.5 + rr() * 3;
-    const rock = makeRock(s, i % 2 ? '#8b8678' : '#9a9383', 30 + i);
+    const col = i % 2 ? '#8b8678' : '#9a9383';
     const a = rr() * 6.28, d = 2 + rr() * 7;
     const x = ZONES.rocks.x + Math.cos(a) * d, z = ZONES.rocks.z + Math.sin(a) * d;
-    rock.position.set(x, forestHeight(x, z) + s * 0.5, z);
-    rock.scale.set(0.7 + rr() * 0.4, 1.2 + rr() * 1.3, 0.7 + rr() * 0.4);
-    rock.rotation.set(rr() * 0.4, rr() * 6, rr() * 0.4);
-    scene.add(rock);
+    const sx = 0.7 + rr() * 0.4, sy = 1.2 + rr() * 1.3, sz = 0.7 + rr() * 0.4, rx = rr() * 0.4, ry = rr() * 6, rz = rr() * 0.4;
+    if (nature.ready) {
+      // 現成岩石素材：按原本大小拉高成怪石
+      const H = s * sy * 1.05, rock = natureMesh('Rock_Medium_' + (1 + i % 3), { height: H, color: i % 2 ? '#c9c2b2' : '#d8d0c0' });
+      const info = nature.info['Rock_Medium_' + (1 + i % 3)], k = H / (info.max[1] - info.min[1]);
+      rock.scale.set(s * 1.1 * sx / (3.2 * k), 1, s * 1.1 * sz / (3.2 * k));
+      rock.position.set(x, forestHeight(x, z) - 0.3, z);
+      rock.rotation.set(rx * 0.5, ry, rz * 0.5);
+      scene.add(rock);
+    } else {
+      const rock = makeRock(s, col, 30 + i);
+      rock.position.set(x, forestHeight(x, z) + s * 0.5, z);
+      rock.scale.set(sx, sy, sz);
+      rock.rotation.set(rx, ry, rz);
+      scene.add(rock);
+    }
   }
   // 泉邊石頭
   for (let i = 0; i < 8; i++) {
     const a = i / 8 * 6.28, x = ZONES.spring.x + Math.cos(a) * 7.5, z = ZONES.spring.z + Math.sin(a) * 7.5;
-    const rock = makeRock(0.8 + rr() * 0.8, '#7b7a70', 60 + i);
-    rock.position.set(x, forestHeight(x, z) + 0.4, z); scene.add(rock);
+    const rs = 0.8 + rr() * 0.8;
+    if (nature.ready) {
+      const rock = natureMesh('Rock_Medium_' + (1 + i % 3), { height: rs * 1.3, color: '#b9b6a8' });
+      rock.position.set(x, forestHeight(x, z) - 0.15, z); rock.rotation.y = i * 1.7; scene.add(rock);
+    } else {
+      const rock = makeRock(rs, '#7b7a70', 60 + i);
+      rock.position.set(x, forestHeight(x, z) + 0.4, z); scene.add(rock);
+    }
   }
   // 草叢
   for (let i = 0; i < 70; i++) {

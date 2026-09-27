@@ -9,6 +9,11 @@ import { chapter3 } from './chapters/pavilion.js';
 import { chapter4 } from './chapters/river.js';
 import { chapter5, chapter6 } from './chapters/mountain.js';
 import { chapter7, chapter8, chapter9 } from './chapters/summit.js';
+import { loadNature } from './nature.js';
+import { applyWind } from './world.js';
+
+// 標題畫面時已在背景載入景物素材；按「開始」時最多再等幾秒，載不到便用程式樹
+const natureReady = loadNature(applyWind);
 
 const CHAPTERS = [
   { name: '序章　柳宗元去了哪裏？', run: prologue },
@@ -33,6 +38,7 @@ async function start(from = 0) {
   title.classList.add('out');
   setTimeout(() => title.classList.add('hidden'), 1500);
   freeze();
+  await Promise.race([natureReady, new Promise(r => setTimeout(r, 6000))]);
   if (from > 0) { S.jumped = true; prepState(from); }
   for (let i = from; i < CHAPTERS.length; i++) {
     await CHAPTERS[i].run();
