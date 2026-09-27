@@ -509,6 +509,8 @@ function updateSun() {
   sun.target.updateMatrixWorld();
 }
 
+const crosshairEl = document.getElementById('crosshair'), dialogEl = document.getElementById('dialog');
+let crossShown = true;
 // ---------------- 主迴圈 ----------------
 let last = performance.now();
 function frame(now) {
@@ -563,6 +565,9 @@ function frame(now) {
   updatePersons(dt);
   updateMarkers();
   updateHover(dt);
+  // 準星只在可操作時顯示；對話、過場時隱藏，免得點在人物臉上
+  const showCross = E.input.interact && dialogEl.classList.contains('hidden');
+  if (showCross !== crossShown) { crossShown = showCross; crosshairEl.style.visibility = showCross ? '' : 'hidden'; }
 
   if (E.world) renderer.render(E.world.scene, camera);
 }
