@@ -121,42 +121,80 @@ export function makeGrassField({ count = 1500, area, heightAt, accept = () => tr
 }
 
 // ---------------- 石峰 ----------------
-/** 喀斯特石峰：瘦長、有稜角、頂上長着一點綠 */
-export function makePinnacle(height = 40, seed = 1, { width = 0.28, rock = '#a79d88', moss = '#56703f' } = {}) {
-  const r = rng(seed);
-  const rad = height * width;
-  // 頂部較寬、崩裂參差（不做圓頂），石身有橫向岩層，像風化的喀斯特石峰
-  const geo = new THREE.CylinderGeometry(rad * 0.55, rad, height, 9, 12);
+/**
+ * 喀斯特石峰群：幾枝尖削的石筍簇在一起（主峰最高、旁邊幾枝較矮），
+ * 石身有直立的稜脊與裂縫，尖頂銳利，凹處暗、朝上的面長青苔。
+ * 底部貼地（y=0），高度約為 height；合併成單一網格，只佔一次繪製。
+ */
+function spireGeo(h, rad, seed, r) {
+  const radial = 10, rings = 14;
+  const geo = new THREE.CylinderGeometry(0, rad, h, radial, rings, false);
   const pos = geo.attributes.position;
-  const lean = (r() - 0.5) * 0.25, lean2 = (r() - 0.5) * 0.25;
-  const half = height / 2;
+  const lean = (r() - 0.5) * 0.12, lean2 = (r() - 0.5) * 0.12;
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), z = pos.getZ(i);
-    let y = pos.getY(i);
-    const k = (y / height) + 0.5;
-    const ang = Math.atan2(z, x);
-    const n = 0.7 + 0.6 * (noise2(Math.cos(ang) * 2 + seed, y * 0.3, seed) * 0.5 + 0.5);
-    // 岩層：每隔一段向內收一級
-    const strata = 1 - 0.1 * (Math.floor(k * 7 + noise2(ang, seed, 3) * 0.8) % 2);
-    const waist = 1 - Math.sin(k * Math.PI) * 0.12;
-    // 頂部：不平的斷口，有高有低
-    if (y > half - 1e-3) y -= (noise2(Math.cos(ang) * 1.7 + seed * 3, Math.sin(ang) * 1.7, seed + 7) * 0.5 + 0.5) * height * 0.22 + (Math.hypot(x, z) < 1e-3 ? height * 0.05 : 0);
-    pos.setXYZ(i, x * n * waist * strata + lean * k * height, y, z * n * waist * strata + lean2 * k * height);
+    const x = pos.getX(i), z = pos.getZ(i), y = pos.getY(i);
+    const k = y / h + 0.5;                              // 0 底 → 1 頂
+    const ang = Math.atan2(z, x), R = Math.hypot(x, z);
+    if (R < 1e-6) { pos.setXYZ(i, lean * h, y, lean2 * h); continue; }
+    // 輪廓：下段粗、上段急收成尖頂
+    const prof = Math.pow(1 - k, 0.75) / Math.max(1e-3, 1 - k);
+    // 直立稜脊：隨角度起伏，沿高度略為扭動
+    const ridge = 0.72 + 0.5 * Math.abs(noise2(Math.cos(ang) * 2.2 + seed, k * 3.5 + Math.sin(ang), seed));
+    // 一段段崩落的石塊，令輪廓參差
+    const chunk = 1 - 0.14 * (Math.floor(k * 9 + noise2(ang * 1.3, seed, 5) * 1.5) % 2);
+    const f = prof * ridge * chunk;
+    pos.setXYZ(i, x * f + lean * k * h, y, z * f + lean2 * k * h);
   }
-  let g = geo.toNonIndexed(); g.computeVertexNormals();
-  const p = g.attributes.position, nrm = g.attributes.normal;
-  const cols = new Float32Array(p.count * 3), c = new THREE.Color(), cr = new THREE.Color(rock), cm = new THREE.Color(moss), dark = new THREE.Color(rock).multiplyScalar(0.72);
-  for (let i = 0; i < p.count; i += 3) {
-    const y = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3 / height + 0.5;
-    const up = nrm.getY(i);
-    c.copy(cr).lerp(dark, 0.35 * (1 - y) + (noise2(i * 0.37, y * 7, seed) * 0.5 + 0.5) * 0.3);
-    if (up > 0.55) c.lerp(cm, 0.7);   // 只在平台面長青苔，不再整個頂部蓋綠
-    for (let k = 0; k < 3; k++) { cols[(i + k) * 3] = c.r; cols[(i + k) * 3 + 1] = c.g; cols[(i + k) * 3 + 2] = c.b; }
+  geo.translate(0, h / 2, 0);
+  const g = geo.toNonIndexed(); g.computeVertexNormals();
+  return g;
+}
+export function makePinnacle(height = 40, seed = 1, { width = 0.28, rock = '#bebbb2', moss = '#5b7a44' } = {}) {
+  const r = rng(seed);
+  const rad = height * width * 0.7;
+  const parts = [];
+  // 主峰
+  parts.push({ g: spireGeo(height, rad, seed, r), x: 0, z: 0 });
+  // 旁峰：兩至四枝，較矮，圍在主峰四周
+  const n = 3 + Math.floor(r() * 3);
+  for (let j = 0; j < n; j++) {
+    const a = (j / n) * Math.PI * 2 + r() * 0.8, d = rad * (0.45 + r() * 0.45);
+    const h = height * (j === 0 ? 0.8 : 0.35 + r() * 0.4);
+    parts.push({ g: spireGeo(h, rad * (0.55 + r() * 0.3), seed * 7 + j + 1, r), x: Math.cos(a) * d, z: Math.sin(a) * d });
   }
-  g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-  const m = new THREE.Mesh(g, vcMat());
-  m.geometry.translate(0, height / 2, 0);
-  return m;
+  // 山腰再簇生幾枝矮石筍
+  for (let j = 0; j < 4; j++) {
+    const a = r() * Math.PI * 2, d = rad * (0.9 + r() * 0.5);
+    parts.push({ g: spireGeo(height * (0.18 + r() * 0.15), rad * 0.4, seed * 31 + j, r), x: Math.cos(a) * d, z: Math.sin(a) * d });
+  }
+  // 山腳的亂石座，把各峰連起來
+  parts.push({ g: spireGeo(height * 0.3, rad * 1.7, seed * 13 + 3, r), x: 0, z: 0 });
+  let total = 0; parts.forEach(p => total += p.g.attributes.position.count);
+  const P = new Float32Array(total * 3), N = new Float32Array(total * 3), C = new Float32Array(total * 3);
+  const cr = new THREE.Color(rock), cd = new THREE.Color(rock).multiplyScalar(0.62), cm = new THREE.Color(moss), c = new THREE.Color();
+  let o = 0;
+  for (const { g, x: ox, z: oz } of parts) {
+    const p = g.attributes.position, nm = g.attributes.normal;
+    for (let i = 0; i < p.count; i += 3) {
+      const y = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3 / height;
+      const up = nm.getY(i);
+      const crev = noise2(i * 0.21 + seed, y * 9, seed + 2) * 0.5 + 0.5;
+      c.copy(cr).lerp(cd, 0.25 * (1 - y) + crev * 0.45);
+      if (up > 0.35 || (crev > 0.78 && y < 0.8)) c.lerp(cm, up > 0.35 ? 0.75 : 0.45);   // 石縫與平台長青苔、小樹
+      for (let k = 0; k < 3; k++) {
+        const v = (o + i + k) * 3;
+        P[v] = p.getX(i + k) + ox; P[v + 1] = p.getY(i + k); P[v + 2] = p.getZ(i + k) + oz;
+        N[v] = nm.getX(i + k); N[v + 1] = nm.getY(i + k); N[v + 2] = nm.getZ(i + k);
+        C[v] = c.r; C[v + 1] = c.g; C[v + 2] = c.b;
+      }
+    }
+    o += p.count;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(P, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(N, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(C, 3));
+  return new THREE.Mesh(geo, vcMat());
 }
 
 // ---------------- 斷崖台地 ----------------
