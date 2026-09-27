@@ -3,6 +3,65 @@ import { E, THREE, ui, audio, enter, watch } from './common.js';
 import { addInteractable, removeInteractable, freeze, unfreeze, wait, lookAt, moveTo, turnTo, tween } from '../engine.js';
 import { makePerson, makeWinePot, makeStrawHat, makeHouse, textCanvas, lam, makeRock, fbm, rng } from '../world.js';
 
+// ---------------- 室內材質（程式繪製，不需圖檔） ----------------
+// 灰階貼圖，乘上原本的顏色：木紋沿長邊走，牆身是帶水漬的石灰牆、牆腳較暗
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  return t;
+}
+const _roomTex = {};
+function woodTex(seed = 1) {
+  const key = 'wood' + seed; if (_roomTex[key]) return _roomTex[key];
+  return (_roomTex[key] = canvasTex(128, 512, (g, w, h) => {
+    const r = rng(seed);
+    g.fillStyle = '#e6e6e6'; g.fillRect(0, 0, w, h);
+    // 木紋：沿長邊、略為起伏的深淺細線
+    for (let i = 0; i < 70; i++) {
+      const x0 = r() * w, amp = 2 + r() * 5, f = 0.004 + r() * 0.01, ph = r() * 6;
+      const shade = 150 + r() * 80;
+      g.strokeStyle = `rgba(${shade * 0.8},${shade * 0.72},${shade * 0.62},${0.18 + r() * 0.3})`;
+      g.lineWidth = 0.6 + r() * 1.8;
+      g.beginPath();
+      for (let y = 0; y <= h; y += 8) { const x = x0 + Math.sin(y * f + ph) * amp; y ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke();
+    }
+    // 一兩個木節
+    for (let k = 0; k < 2; k++) {
+      const cx = 20 + r() * (w - 40), cy = 40 + r() * (h - 80);
+      for (let i = 6; i > 0; i--) { g.strokeStyle = `rgba(90,70,50,${0.035 * i})`; g.lineWidth = 1; g.beginPath(); g.ellipse(cx, cy, i * 2.2, i * 5, 0, 0, Math.PI * 2); g.stroke(); }
+    }
+  }));
+}
+function plasterTex() {
+  if (_roomTex.plaster) return _roomTex.plaster;
+  return (_roomTex.plaster = canvasTex(512, 512, (g, w, h) => {
+    const r = rng(21);
+    g.fillStyle = '#f0f0f0'; g.fillRect(0, 0, w, h);
+    // 大片不均勻的灰白（石灰刷痕）
+    for (let i = 0; i < 90; i++) {
+      const x = r() * w, y = r() * h, rad = 30 + r() * 90, v = 225 + r() * 30;
+      const grd = g.createRadialGradient(x, y, 0, x, y, rad);
+      grd.addColorStop(0, `rgba(${v},${v * 0.975},${v * 0.94},0.09)`); grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+    // 橫向刷痕
+    for (let i = 0; i < 120; i++) { g.fillStyle = `rgba(120,110,95,${0.015 + r() * 0.025})`; g.fillRect(r() * w, r() * h, 40 + r() * 160, 1 + r() * 2); }
+    // 由牆腳滲上的水漬
+    const lo = g.createLinearGradient(0, h, 0, h * 0.62);
+    lo.addColorStop(0, 'rgba(95,80,60,0.3)'); lo.addColorStop(1, 'rgba(95,80,60,0)');
+    g.fillStyle = lo; g.fillRect(0, h * 0.62, w, h * 0.38);
+    // 細小斑點
+    for (let i = 0; i < 1500; i++) { g.fillStyle = r() > 0.5 ? 'rgba(80,70,60,0.08)' : 'rgba(255,255,255,0.1)'; g.fillRect(r() * w, r() * h, 1.5, 1.5); }
+  }));
+}
+function texMat(color, tex, rx = 1, ry = 1, rot = 0) {
+  const t = tex.clone(); t.needsUpdate = true; t.repeat.set(rx, ry); t.center.set(0.5, 0.5); t.rotation = rot;
+  return new THREE.MeshLambertMaterial({ color, map: t });
+}
+
 function buildRoom() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#6f747a');
@@ -27,13 +86,25 @@ function buildRoom() {
   const wood = '#6d5039', wall = '#d8cdb6', beam = '#4a3325';
   // 地板
   for (let i = -4; i < 4; i++) {
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, D * 2), lam(new THREE.Color(wood).offsetHSL(0, 0, (i % 3) * 0.02)));
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, D * 2), texMat(new THREE.Color(wood).offsetHSL(0, 0, (i % 3) * 0.02), woodTex(3 + (i & 3)), 1, 1));
     plank.position.set(i + 0.5, -0.05, 0); scene.add(plank);
   }
-  const ceil = new THREE.Mesh(new THREE.BoxGeometry(W * 2, 0.1, D * 2), lam('#3f2d21')); ceil.position.y = H; scene.add(ceil);
-  const wm = lam(wall);
+  const ceil = new THREE.Mesh(new THREE.BoxGeometry(W * 2, 0.1, D * 2), texMat('#3f2d21', woodTex(9), 8, 1)); ceil.position.y = H; scene.add(ceil);
+  const wm = texMat(wall, plasterTex(), 1, 1);
   // 牆（北牆開窗）
-  const addBox = (w, h, d, x, y, z, m = wm) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); scene.add(b); return b; };
+  // 牆身的石灰紋按每幅牆的實際大小重複（約 2.5 米一格），牆腳水漬貼齊地面
+  const addBox = (w, h, d, x, y, z, m = wm) => {
+    const g = new THREE.BoxGeometry(w, h, d);
+    if (m === wm) {
+      const uv = g.attributes.uv, pos = g.attributes.position;
+      for (let i = 0; i < uv.count; i++) {
+        const px = pos.getX(i) + x, py = pos.getY(i) + y, pz = pos.getZ(i) + z;
+        const horiz = Math.abs(w) > Math.abs(d) ? px : pz;
+        uv.setXY(i, horiz / 2.5, py / H);
+      }
+    }
+    const b = new THREE.Mesh(g, m); b.position.set(x, y, z); scene.add(b); return b;
+  };
   addBox(W * 2, H, 0.2, 0, H / 2, D);             // 南
   addBox(0.2, H, D * 2, -W, H / 2, 0);            // 西
   // 東牆（留門洞）
@@ -46,8 +117,8 @@ function buildRoom() {
   addBox(2.6, 1.0, 0.2, 0, 0.5, -D);
   addBox(2.6, H - 2.4, 0.2, 0, 2.4 + (H - 2.4) / 2, -D);
   // 樑柱
-  for (const x of [-W + 0.15, W - 0.15]) for (const z of [-D + 0.15, D - 0.15]) addBox(0.25, H, 0.25, x, H / 2, z, lam(beam));
-  addBox(W * 2, 0.22, 0.25, 0, H - 0.2, -D + 0.2, lam(beam));
+  for (const x of [-W + 0.15, W - 0.15]) for (const z of [-D + 0.15, D - 0.15]) addBox(0.25, H, 0.25, x, H / 2, z, texMat(beam, woodTex(5), 0.3, 2));
+  addBox(W * 2, 0.22, 0.25, 0, H - 0.2, -D + 0.2, texMat(beam, woodTex(6), 0.2, 6));
 
   // 窗櫺
   const win = new THREE.Group(); win.position.set(0, 1.7, -D);
@@ -59,12 +130,12 @@ function buildRoom() {
   scene.add(win);
 
   // 門
-  const door = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.25, 1.15), lam('#5a3c28'));
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.25, 1.15), texMat('#5a3c28', woodTex(7), 1, 1));
   door.position.set(W - 0.02, 1.125, 0); scene.add(door);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 5, 12), lam('#b08d4a')); ring.position.set(W - 0.08, 1.1, 0.3); ring.rotation.y = Math.PI / 2; scene.add(ring);
 
   // 書案
-  const tableM = lam('#5b3a25');
+  const tableM = texMat('#5b3a25', woodTex(8), 1, 1, Math.PI / 2);
   const table = new THREE.Group(); table.position.set(0.3, 0, -0.9);
   const top = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.08, 0.95), tableM); top.position.y = 0.78; table.add(top);
   for (const x of [-0.85, 0.85]) for (const z of [-0.4, 0.4]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.78, 0.07), tableM); l.position.set(x, 0.39, z); table.add(l); }
@@ -102,7 +173,7 @@ function buildRoom() {
   const sleeves = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.2, 0.12), lam('#2f5a4a')); sleeves.position.y = 1.8; rack.add(sleeves);
   scene.add(rack);
   const shelf = new THREE.Group(); shelf.position.set(-W + 0.45, 0, -1.6);
-  const sb = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.9, 0.9), lam('#5b3a25')); sb.position.y = 0.45; shelf.add(sb);
+  const sb = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.9, 0.9), texMat('#5b3a25', woodTex(10), 1, 1)); sb.position.y = 0.45; shelf.add(sb);
   for (let i = 0; i < 5; i++) { const sc = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8), lam(i % 2 ? '#e8dcc0' : '#d9c89f')); sc.rotation.x = Math.PI / 2; sc.position.set(-0.1 + (i % 3) * 0.1, 0.95 + Math.floor(i / 3) * 0.1, 0); shelf.add(sc); }
   scene.add(shelf);
 

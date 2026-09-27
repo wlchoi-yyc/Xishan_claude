@@ -392,7 +392,7 @@ export function windMat(amp = 0.004) {
         transformed.z += wsw * 0.45 * windAmp * wh * wh;
       }`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>',
-      'outgoingLight = max(outgoingLight, diffuseColor.rgb * 0.3);\n#include <opaque_fragment>');
+      '#if NUM_HEMI_LIGHTS > 0\n outgoingLight = max(outgoingLight, diffuseColor.rgb * hemisphereLights[0].skyColor * 0.28);\n#endif\n#include <opaque_fragment>');
   };
   m.customProgramCacheKey = () => 'wind-' + key;
   _windMats[key] = m;
