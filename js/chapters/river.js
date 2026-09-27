@@ -68,9 +68,32 @@ function buildRiver() {
   // 船與船家
   const boat = makeBoat(); boat.position.set(73, 0.1, 0); scene.add(boat);
   const boatman = makePerson({ preset: 'boatman', name: '船家' });
-  boatman.position.set(2.2, 0.3, 0); boatman.rotation.y = -Math.PI / 2; boat.add(boatman);
+  // 船家站在船尾一側，讓出另一側給乘客上船
+  boatman.position.set(2.1, 0.3, -0.32); boatman.rotation.y = -Math.PI / 2; boat.add(boatman);
   E.persons.add(boatman);
-  const oar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 3.4, 5), lam('#8a6a48')); oar.position.set(0.25, -0.9, 0.2); oar.rotation.x = 0.6; boatman.userData.armR.add(oar);
+  // 竹篙：握在船家雙手之中，斜插在他右手邊的船舷外
+  const oar = new THREE.Group();
+  const bamboo = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 1, 7), lam('#9c8a55'));
+  oar.add(bamboo);
+  for (let i = 1; i < 6; i++) { const n = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.031, 0.018, 7), lam('#7a6a3c')); n.position.y = -0.5 + i / 6; oar.add(n); }
+  boatman.userData.upper.add(oar);
+  // phase：撐船時竿子前後擺動（0 = 靜止）
+  const poleAt = (phase = 0) => {
+    const top = new THREE.Vector3(-0.2, 1.95, 0.1 + phase * 0.25);
+    const bot = new THREE.Vector3(-0.98, -0.9, 0.4 - phase * 0.55);
+    const axis = top.clone().sub(bot).normalize();
+    const atY = (y) => bot.clone().lerp(top, (y - bot.y) / (top.y - bot.y));
+    const pL = atY(1.38 + phase * 0.05), pR = atY(1.02 + phase * 0.05);
+    boatman.userData.holdPole(pR, pL, axis);
+    const len = top.distanceTo(bot);
+    oar.position.copy(top).add(bot).multiplyScalar(0.5);
+    oar.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
+    oar.scale.set(1, len, 1);
+    oar.children.forEach((c, i) => { if (i) c.scale.set(1, 1 / len, 1); });
+  };
+  poleAt(0);
+  boatman.userData.extraUpdate = () => { if (!boatman.userData.rowing) poleAt(0); };
+  boatman.userData.poleAt = poleAt;
 
   // 路（三條）
   const pathM = { color: '#9a8b68', opacity: 1, lift: 0.08, seg: 1 };
@@ -165,14 +188,15 @@ export async function chapter4() {
     ui.hideDialog();
   }, { range: 4.5 });
 
-  // 上船
+  // 上船：船家轉回船頭方向，玩家從另一側（遠離船家與竹篙）走到船頭
   freeze();
-  S.boating = true;
-  await moveTo(boat.position.x - 1, 0, 1.5, { eye: 1.5 });
   watch(boatman, false);
+  boatman.userData.lookTarget = { x: boat.position.x - 20, y: 1.6, z: -0.32 };
+  S.boating = true;
+  await moveTo(boat.position.x + 2.7, 0.45, 1.0, { eye: 1.5 });
+  await moveTo(boat.position.x - 1.2, 0.4, 1.6);
   boatman.userData.lookTarget = null;
   boatman.rotation.y = -Math.PI / 2;
-  boatman.userData.customArms = true;
   await turnTo(Math.PI / 2, 0.02, 1);
   setControls({ move: false, look: true, interact: false });
   ui.objective('過湘江');
@@ -180,18 +204,19 @@ export async function chapter4() {
   let oarT = 0;
   const row = (dt) => {
     oarT += dt;
-    boatman.userData.armR.rotation.x = -0.9 + Math.sin(oarT * 1.6) * 0.5;
-    boatman.userData.armL.rotation.x = -0.9 + Math.sin(oarT * 1.6) * 0.5;
+    boatman.userData.rowing = true;
+    boatman.userData.poleAt(Math.sin(oarT * 1.6));
     if (Math.sin(oarT * 1.6) > 0.98 && !row.p) { audio.oar(); row.p = true; } else if (Math.sin(oarT * 1.6) < 0.5) row.p = false;
   };
   E.onUpdate.push(row);
   const cap = (async () => { await wait(4); await ui.caption('過湘江', { gloss: '渡過湘江', hold: 4 }); })();
   await tween(13, k => {
     boat.position.x = lerp(x0, x1, k);
-    E.player.pos.x = boat.position.x - 1;
+    E.player.pos.x = boat.position.x - 1.2;
   }, t => t < 0.1 ? t * t * 5 : t > 0.9 ? 1 - (1 - t) * (1 - t) * 5 : t);
   await cap;
   E.onUpdate.splice(E.onUpdate.indexOf(row), 1);
+  boatman.userData.rowing = false;
   ui.journalAdd('遊蹤', '湘江：乘船渡過湘江。', '過湘江');
 
   // 上岸

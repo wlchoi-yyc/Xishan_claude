@@ -804,6 +804,15 @@ export function makePerson(opts = {}) {
     held.obj = null; hand.geometry = relaxedGeo; fore.quaternion.identity();
     ud.drinkK = 0; ud.customArms = false;
   };
+  /** 雙手握住一根竿（撐船的竹篙）。pR、pL：左右手握點；axis：竿的方向（皆為 upper 座標） */
+  ud.holdPole = (pR, pL, axis) => {
+    for (const [g, p, pole] of [[armR, pR, new V3(-1, -0.4, -0.4)], [armL, pL, new V3(1, -0.4, -0.4)]]) {
+      solveArm(g, p, axis, pole, qA0, qF0);
+      g.quaternion.copy(qA0); g.userData.fore.quaternion.copy(qF0);
+      g.userData.hand.geometry = g.userData.gripGeo;
+    }
+    ud.customArms = true;
+  };
   /** 飲酒動作 k：0 手自然下垂 → 1 杯在胸前 → 2 舉杯就口（頭微仰） */
   ud.drinkPose = (k) => {
     k = clamp(k, 0, 2); ud.drinkK = k; ud.customArms = true;
