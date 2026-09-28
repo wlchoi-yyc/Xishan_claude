@@ -4,7 +4,9 @@
 // 音樂模式 → 背景音樂檔。未列出的模式沿用程序化古琴音樂。
 const BGM = {
   yongzhou: 'assets/music/yongzhou.mp3', // Suno「Misty Mountain Guqin」：未遊西山前的永州山林
-  xishan: 'assets/music/xishan.mp3',     // Suno「Xishan 2」：望見西山之後，過湘江至山頂
+  xishan: 'assets/music/xishan.mp3',     // Suno「Xishan 2」：望見西山之後，過湘江至攀登
+  // 第七、八關山頂：平和、舒服；未有檔案時沿用 xishan
+  summit: ['assets/music/summit.mp3', 'assets/music/xishan.mp3'],
 };
 const BGM_VOL = 0.35;
 
@@ -82,12 +84,12 @@ class AudioSys {
     this.mode = mode;
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    this.bgmTo(BGM[mode] || null, ramp);
+    this.bgmTo(this.bgmPick(mode), ramp);
     this.musicBus.gain.setTargetAtTime(mode ? 0.55 : 0, t, ramp / 3);
     if (this.pad) { const p = this.pad; this.pad = null; p.gain.gain.setTargetAtTime(0, t, 1.5); setTimeout(() => p.oscs.forEach(o => o.stop()), 6000); }
     // 持續低音墊（有背景音樂檔時不加，免與樂曲調性相撞）
-    if (!this.bgmOn && (mode === 'xishan' || mode === 'final' || mode === 'dusk')) {
-      const root = mode === 'xishan' ? 146.83 : mode === 'dusk' ? 130.81 : 110;
+    if (!this.bgmOn && (mode === 'xishan' || mode === 'summit' || mode === 'final' || mode === 'dusk')) {
+      const root = mode === 'xishan' || mode === 'summit' ? 146.83 : mode === 'dusk' ? 130.81 : 110;
       const ratios = mode === 'dusk' ? [1, 1.5, 2, 2.4] : [1, 1.5, 2, 2.25];
       const gain = this.ctx.createGain(); gain.gain.value = 0; gain.connect(this.musicBus);
       const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.connect(gain);
@@ -113,6 +115,11 @@ class AudioSys {
     }
     // 音樂（有背景音樂檔在播時不另撥弦）
     if (this.mode && !this.bgmOn && t > this.nextNote) this.phrase();
+  }
+  /** 某音樂模式應播的檔案（清單中第一個未載入失敗的） */
+  bgmPick(mode) {
+    const f = this.bgmFailed;
+    return [].concat(BGM[mode] || []).find(s => !(f && f.has(s))) || null;
   }
   /** 背景音樂檔：每首一個 <audio> 串流播放（不整首解碼入記憶體），經 Web Audio 交叉淡入淡出 */
   bgmTo(src, ramp = 3) {
@@ -140,8 +147,8 @@ class AudioSys {
       tr = this.bgm[src] = { el, gain, active: false, pause: 0 };
       el.addEventListener('error', () => {
         this.bgmFailed.add(src);
-        tr.active = false;
-        if (BGM[this.mode] === src) { this.bgmOn = false; this.nextNote = 0; this.music(this.mode, 1); }
+        el.pause(); if (gain) gain.gain.value = 0;
+        if (tr.active || [].concat(BGM[this.mode] || []).includes(src)) { tr.active = false; this.bgmOn = false; this.nextNote = 0; this.music(this.mode, 1); }
       });
     }
     clearTimeout(tr.pause);
@@ -156,6 +163,7 @@ class AudioSys {
       yongzhou: { notes: [110, 130.81, 146.83, 164.81, 196, 220, 261.63], gap: [2.2, 4.5], len: [1, 3] },
       // 宮調：明亮、開闊
       xishan: { notes: [293.66, 329.63, 369.99, 440, 493.88, 587.33, 659.25], gap: [1.6, 3.2], len: [2, 4] },
+      summit: { notes: [293.66, 329.63, 369.99, 440, 493.88, 587.33], gap: [2.4, 4.5], len: [1, 3] },
       dusk: { notes: [196, 220, 261.63, 293.66, 329.63, 392], gap: [3, 6], len: [1, 2] },
       final: { notes: [220, 246.94, 293.66, 329.63, 369.99, 440], gap: [4, 7], len: [1, 2] },
     }[this.mode];

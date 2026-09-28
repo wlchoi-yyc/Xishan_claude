@@ -304,7 +304,7 @@ function pinchOverlay() {
 let W = null;
 export async function chapter7() {
   audio.ambience({ wind: 0.7, water: 0, birds: 0.3 });
-  audio.music('xishan');
+  audio.music('summit', 5);
   W = await enter(buildSummit, { x: -3, z: -1, yaw: Math.PI / 2, pitch: -0.14 }, { fade: 1.6 });
   ui.showDpad(true);
   await ui.chapterCard('第七關', '西山之頂');
@@ -444,7 +444,7 @@ export async function chapter7() {
 
 // ================= 第八關 =================
 export async function chapter8() {
-  if (!W) { W = await enter(buildSummit, { x: -3, z: -1, yaw: Math.PI / 2, pitch: -0.14 }); audio.music('xishan'); audio.ambience({ wind: 0.7, birds: 0.3 }); }
+  if (!W) { W = await enter(buildSummit, { x: -3, z: -1, yaw: Math.PI / 2, pitch: -0.14 }); audio.music('summit'); audio.ambience({ wind: 0.7, birds: 0.3 }); }
   freeze();
   await ui.chapterCard('第八關', '為甚麼西山「怪特」？', '');
   await ui.say('你', '柳先生以前明明已經「遊遍」永州……');
