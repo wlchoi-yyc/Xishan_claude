@@ -1,4 +1,11 @@
-// 程序化聲音：風、水、鳥、蟲、古琴式撥弦音樂與音效（Web Audio，無需音檔）
+// 程序化聲音：風、水、鳥、蟲、古琴式撥弦音樂與音效（Web Audio）
+// 另可為個別音樂模式指定背景音樂檔（BGM）；檔案載入失敗時自動改用程序化音樂。
+
+// 音樂模式 → 背景音樂檔。未列出的模式沿用程序化古琴音樂。
+const BGM = {
+  yongzhou: 'assets/music/yongzhou.mp3', // Suno「Misty Mountain Guqin」：未遊西山前的永州山林
+};
+const BGM_VOL = 0.32;
 
 class AudioSys {
   constructor() {
@@ -74,6 +81,7 @@ class AudioSys {
     this.mode = mode;
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
+    this.bgmTo(BGM[mode] || null, ramp);
     this.musicBus.gain.setTargetAtTime(mode ? 0.55 : 0, t, ramp / 3);
     if (this.pad) { const p = this.pad; this.pad = null; p.gain.gain.setTargetAtTime(0, t, 1.5); setTimeout(() => p.oscs.forEach(o => o.stop()), 6000); }
     if (mode === 'xishan' || mode === 'final' || mode === 'dusk') {
@@ -101,8 +109,44 @@ class AudioSys {
       this.cricket();
       this.nextCricket = t + 0.8 + Math.random() * 1.5;
     }
-    // 音樂
-    if (this.mode && t > this.nextNote) this.phrase();
+    // 音樂（有背景音樂檔在播時不另撥弦）
+    if (this.mode && !this.bgmOn && t > this.nextNote) this.phrase();
+  }
+  /** 背景音樂檔：以 <audio> 串流播放（不整首解碼入記憶體），經 Web Audio 淡入淡出 */
+  bgmTo(src, ramp = 3) {
+    const ctx = this.ctx, t = ctx.currentTime;
+    if (src && this.bgmFailed && this.bgmFailed.has(src)) src = null;
+    if (!src) {
+      this.bgmOn = false;
+      if (this.bgmGain) {
+        this.bgmGain.gain.setTargetAtTime(0, t, ramp / 3);
+        clearTimeout(this.bgmPause);
+        const el = this.bgmEl;
+        this.bgmPause = setTimeout(() => { if (!this.bgmOn) el.pause(); }, ramp * 1500 + 500);
+      } else if (this.bgmEl) this.bgmEl.pause();
+      return;
+    }
+    if (!this.bgmEl) {
+      const el = this.bgmEl = new Audio();
+      el.loop = true; el.preload = 'auto';
+      this.bgmGain = ctx.createGain(); this.bgmGain.gain.value = 0; this.bgmGain.connect(this.master);
+      try { ctx.createMediaElementSource(el).connect(this.bgmGain); }
+      catch (e) { el.volume = BGM_VOL; this.bgmGain = null; }
+      this.bgmFailed = new Set();
+      el.addEventListener('error', () => {
+        this.bgmFailed.add(this.bgmSrc);
+        this.bgmOn = false;
+        this.nextNote = 0;
+      });
+    }
+    const el = this.bgmEl;
+    clearTimeout(this.bgmPause);
+    if (this.bgmSrc !== src) { this.bgmSrc = src; el.src = src; }
+    this.bgmOn = true;
+    const p = el.play(); if (p && p.catch) p.catch(() => {});
+    if (this.bgmGain) {
+      this.bgmGain.gain.setTargetAtTime(BGM_VOL, t, ramp / 3);
+    }
   }
   phrase() {
     const t = this.ctx.currentTime;
