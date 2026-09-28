@@ -74,7 +74,7 @@ js/people.js          人物造型（參數曲面雕塑的頭臉、手指、交�
 tools/people-preview.html  開發用：人物造型預覽（?view=lineup|faces|face&p=liu|poses|walk|back）
 js/ui.js              對話、原文字幕、心境、日誌、地圖、各種解謎介面
 js/audio.js           程序化聲音（風、水、鳥、古琴式撥弦音樂）＋背景音樂檔播放
-assets/music/         背景音樂（yongzhou.mp3：Suno「Misty Mountain Guqin」，序章至望見西山前；xishan.mp3：Suno「Xishan 2」，望見西山後至山頂）
+assets/music/         背景音樂（yongzhou.mp3：Suno「Misty Mountain Guqin」，序章至望見西山前；xishan.mp3：Suno「Xishan 2」，望見西山後至攀登；summit.mp3：Suno「Xishan 3」，第七、八關山頂）
 js/data.js            原文、心境、結局重建表
 js/chapters/*.js      各章節
 ```

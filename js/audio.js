@@ -5,7 +5,7 @@
 const BGM = {
   yongzhou: 'assets/music/yongzhou.mp3', // Suno「Misty Mountain Guqin」：未遊西山前的永州山林
   xishan: 'assets/music/xishan.mp3',     // Suno「Xishan 2」：望見西山之後，過湘江至攀登
-  // 第七、八關山頂：平和、舒服；未有檔案時沿用 xishan
+  // Suno「Xishan 3」：第七、八關山頂，平和、舒服；檔案載入失敗時沿用 xishan
   summit: ['assets/music/summit.mp3', 'assets/music/xishan.mp3'],
 };
 const BGM_VOL = 0.35;
