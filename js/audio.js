@@ -5,7 +5,7 @@
 const BGM = {
   yongzhou: 'assets/music/yongzhou.mp3', // Suno「Misty Mountain Guqin」：未遊西山前的永州山林
 };
-const BGM_VOL = 0.32;
+const BGM_VOL = 0.35;
 
 class AudioSys {
   constructor() {

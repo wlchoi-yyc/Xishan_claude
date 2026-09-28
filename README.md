@@ -73,9 +73,10 @@ js/world.js           地形、樹木、器物等程序化建模
 js/people.js          人物造型（參數曲面雕塑的頭臉、手指、交領右衽袍、衣褶陰影）
 tools/people-preview.html  開發用：人物造型預覽（?view=lineup|faces|face&p=liu|poses|walk|back）
 js/ui.js              對話、原文字幕、心境、日誌、地圖、各種解謎介面
-js/audio.js           程序化聲音（風、水、鳥、古琴式撥弦音樂），無需音檔
+js/audio.js           程序化聲音（風、水、鳥、古琴式撥弦音樂）＋背景音樂檔播放
+assets/music/         背景音樂（yongzhou.mp3：Suno「Misty Mountain Guqin」，序章至望見西山前播放）
 js/data.js            原文、心境、結局重建表
 js/chapters/*.js      各章節
 ```
 
-所有景物與聲音皆由程式即時生成，沒有外部美術或音效檔案。
+除 `assets/` 內的自然素材和背景音樂外，景物與聲音皆由程式即時生成。背景音樂以串流播放，載入失敗時自動改用程序化古琴音樂。
