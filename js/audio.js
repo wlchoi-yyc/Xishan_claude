@@ -4,6 +4,7 @@
 // 音樂模式 → 背景音樂檔。未列出的模式沿用程序化古琴音樂。
 const BGM = {
   yongzhou: 'assets/music/yongzhou.mp3', // Suno「Misty Mountain Guqin」：未遊西山前的永州山林
+  xishan: 'assets/music/xishan.mp3',     // Suno「Xishan 2」：望見西山之後，過湘江至山頂
 };
 const BGM_VOL = 0.35;
 
@@ -84,7 +85,8 @@ class AudioSys {
     this.bgmTo(BGM[mode] || null, ramp);
     this.musicBus.gain.setTargetAtTime(mode ? 0.55 : 0, t, ramp / 3);
     if (this.pad) { const p = this.pad; this.pad = null; p.gain.gain.setTargetAtTime(0, t, 1.5); setTimeout(() => p.oscs.forEach(o => o.stop()), 6000); }
-    if (mode === 'xishan' || mode === 'final' || mode === 'dusk') {
+    // 持續低音墊（有背景音樂檔時不加，免與樂曲調性相撞）
+    if (!this.bgmOn && (mode === 'xishan' || mode === 'final' || mode === 'dusk')) {
       const root = mode === 'xishan' ? 146.83 : mode === 'dusk' ? 130.81 : 110;
       const ratios = mode === 'dusk' ? [1, 1.5, 2, 2.4] : [1, 1.5, 2, 2.25];
       const gain = this.ctx.createGain(); gain.gain.value = 0; gain.connect(this.musicBus);
@@ -112,41 +114,40 @@ class AudioSys {
     // 音樂（有背景音樂檔在播時不另撥弦）
     if (this.mode && !this.bgmOn && t > this.nextNote) this.phrase();
   }
-  /** 背景音樂檔：以 <audio> 串流播放（不整首解碼入記憶體），經 Web Audio 淡入淡出 */
+  /** 背景音樂檔：每首一個 <audio> 串流播放（不整首解碼入記憶體），經 Web Audio 交叉淡入淡出 */
   bgmTo(src, ramp = 3) {
     const ctx = this.ctx, t = ctx.currentTime;
-    if (src && this.bgmFailed && this.bgmFailed.has(src)) src = null;
-    if (!src) {
-      this.bgmOn = false;
-      if (this.bgmGain) {
-        this.bgmGain.gain.setTargetAtTime(0, t, ramp / 3);
-        clearTimeout(this.bgmPause);
-        const el = this.bgmEl;
-        this.bgmPause = setTimeout(() => { if (!this.bgmOn) el.pause(); }, ramp * 1500 + 500);
-      } else if (this.bgmEl) this.bgmEl.pause();
-      return;
+    this.bgm = this.bgm || {};
+    this.bgmFailed = this.bgmFailed || new Set();
+    if (src && this.bgmFailed.has(src)) src = null;
+    this.bgmOn = !!src;
+    // 其他曲目淡出，完全靜下來後暫停（下次回來從原處接上）
+    for (const [k, tr] of Object.entries(this.bgm)) {
+      if (k === src || !tr.active) continue;
+      tr.active = false;
+      clearTimeout(tr.pause);
+      if (tr.gain) { tr.gain.gain.setTargetAtTime(0, t, ramp / 3); tr.pause = setTimeout(() => { if (!tr.active) tr.el.pause(); }, ramp * 1500 + 500); }
+      else tr.el.pause();
     }
-    if (!this.bgmEl) {
-      const el = this.bgmEl = new Audio();
+    if (!src) return;
+    let tr = this.bgm[src];
+    if (!tr) {
+      const el = new Audio(src);
       el.loop = true; el.preload = 'auto';
-      this.bgmGain = ctx.createGain(); this.bgmGain.gain.value = 0; this.bgmGain.connect(this.master);
-      try { ctx.createMediaElementSource(el).connect(this.bgmGain); }
-      catch (e) { el.volume = BGM_VOL; this.bgmGain = null; }
-      this.bgmFailed = new Set();
+      let gain = ctx.createGain(); gain.gain.value = 0; gain.connect(this.master);
+      try { ctx.createMediaElementSource(el).connect(gain); }
+      catch (e) { gain.disconnect(); gain = null; el.volume = BGM_VOL; }
+      tr = this.bgm[src] = { el, gain, active: false, pause: 0 };
       el.addEventListener('error', () => {
-        this.bgmFailed.add(this.bgmSrc);
-        this.bgmOn = false;
-        this.nextNote = 0;
+        this.bgmFailed.add(src);
+        tr.active = false;
+        if (BGM[this.mode] === src) { this.bgmOn = false; this.nextNote = 0; this.music(this.mode, 1); }
       });
     }
-    const el = this.bgmEl;
-    clearTimeout(this.bgmPause);
-    if (this.bgmSrc !== src) { this.bgmSrc = src; el.src = src; }
-    this.bgmOn = true;
-    const p = el.play(); if (p && p.catch) p.catch(() => {});
-    if (this.bgmGain) {
-      this.bgmGain.gain.setTargetAtTime(BGM_VOL, t, ramp / 3);
-    }
+    clearTimeout(tr.pause);
+    tr.active = true;
+    const pr = tr.el.play(); if (pr && pr.catch) pr.catch(() => {});
+    if (tr.gain) tr.gain.gain.setTargetAtTime(BGM_VOL, t, ramp / 3);
   }
   phrase() {
     const t = this.ctx.currentTime;
