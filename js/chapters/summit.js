@@ -668,7 +668,7 @@ export async function chapter9() {
   await ui.say('柳宗元', '是啊。');
   ui.hideDialog();
   await wait(1.6);
-  await ui.say('柳宗元', '可惜，我還是不太捨得。');
+  await ui.say('柳宗元', '可是，我仍然不捨得離開。');
   ui.hideDialog();
   await ui.caption('而猶不欲歸。', { gloss: '卻仍然不想回去。', hold: 5 });
   ui.journalAdd('心境', '天黑了，仍然不想回去——依戀這份天人合一的感受。', '而猶不欲歸');
