@@ -234,12 +234,10 @@ export async function chapter3() {
 
   // ------ 始指異之 ------
   freeze();
-  audio.music(null, 1);
-  audio.ambience({ wind: 0.15, birds: 0 }, 1);
+  audio.ambience({ wind: 0.15, birds: 0 }, 1); // 第三關全程維持第一、二關的音樂（yongzhou），不中途轉換
   await lookAt(world.peak, 1.2);
   E.fovTarget = 32;
   await tween(3, k => { world.halo.material.opacity = k * 0.55; });
-  audio.music('xishan', 2);
   audio.bell();
   await wait(1.5);
   await ui.caption('今年九月二十八日，因坐法華西亭，望西山，始指異之。', { hold: 7.5 });
@@ -268,7 +266,6 @@ export async function chapter3() {
   ui.toast('新目標：追尋西山方向的足跡');
 
   // ------ 第四關（上）：亭下的僕人 ------
-  audio.music('yongzhou', 3);
   audio.ambience({ wind: 0.35, birds: 0.5 });
   const servant = makePerson({ preset: 'servant', name: '僕人' });
   const sp = { x: 5.5, z: -10.5 };
