@@ -328,17 +328,21 @@ function updateMovement(dt) {
     cancelWalk(false);
     const len = Math.hypot(fwd, side);
     fwd /= len; side /= len;
-    vx = (-sy * fwd + cy * side) * p.speed;
-    vz = (-cy * fwd - sy * side) * p.speed;
+    const ms = E.world?.moveSpeed ?? p.speed;
+    vx = (-sy * fwd + cy * side) * ms;
+    vz = (-cy * fwd - sy * side) * ms;
   } else if (autoWalk && E.input.move) {
     const dx = autoWalk.x - p.pos.x, dz = autoWalk.z - p.pos.z;
     const d = Math.hypot(dx, dz);
     if (d <= autoWalk.stopDist) { cancelWalk(true); }
     else {
-      vx = dx / d * p.speed; vz = dz / d * p.speed;
+      // 自動行走可按場景加速（world.walkSpeed），接近目標時減速
+      const top = Math.max(p.speed, E.world?.walkSpeed ?? p.speed);
+      const ws = Math.min(top, Math.max(p.speed, (d - autoWalk.stopDist) * 2.2));
+      vx = dx / d * ws; vz = dz / d * ws;
       if (!pointer.dragging) {
         const want = Math.atan2(-dx, -dz);
-        p.yaw += angleDiff(p.yaw, want) * Math.min(1, dt * 3);
+        p.yaw += angleDiff(p.yaw, want) * Math.min(1, dt * (top > p.speed ? 4.5 : 3));
       }
       autoWalk.stuck += dt;
       if (autoWalk.stuck > 0.5) {
@@ -354,7 +358,7 @@ function updateMovement(dt) {
     tmpV.set(nx, 0, nz);
     collide(tmpV);
     p.pos.x = tmpV.x; p.pos.z = tmpV.z;
-    p.bob += dt * 9;
+    p.bob += dt * Math.min(12, 9 * Math.hypot(vx, vz) / p.speed);
     E.walking = true;
   } else {
     E.walking = false;

@@ -237,6 +237,8 @@ export async function chapter1() {
   audio.music('yongzhou');
   const world = await enter(buildForest, { x: 0, z: 100, yaw: 0, pitch: -0.05 });
   const scene = world.scene, H = forestHeight;
+  world.walkSpeed = 9.5;   // 點擊標記後自動走過去的速度（山林範圍大，走快一點）
+  world.moveSpeed = 5;     // 方向鍵／方向盤步速
   ui.mapVisit('forest');
   ui.mapRoute(['home', 'forest']);
   if (document.getElementById('btnMap').classList.contains('hidden')) { ui.unlockButton('btnMap'); ui.toast('老僕把柳先生手繪的永州簡圖交給了你（右上角「地圖」）'); }
