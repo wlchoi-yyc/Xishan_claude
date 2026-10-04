@@ -3,6 +3,7 @@ import { THREE, E } from './engine.js';
 import { GLTFLoader } from '../lib/addons/loaders/GLTFLoader.js';
 import { clone } from '../lib/addons/utils/SkeletonUtils.js';
 import { makePerson } from './people.js';
+import { createLiuFootPose } from './liu-foot-pose.js';
 
 let loading;
 export function loadLiuCharacter() {
@@ -53,13 +54,16 @@ export async function makeLiuCharacter(opts = {}) {
   grip.position.copy(cupBone.position); grip.quaternion.copy(cupBone.quaternion);
   cupBone.parent.add(grip);
   const mixer = new THREE.AnimationMixer(actor);
+  const footPose = createLiuFootPose(actor);
   const overlayBones = [head, spine, chest, armL, armR, thighL, thighR];
   const baseRotations = overlayBones.map(b => b.quaternion.clone());
   function evaluate(dt) {
     // 恆定動畫軌不會每幀寫回骨骼；先移除上一幀疊加，防止轉頭／步行累積扭曲。
+    footPose.restore();
     overlayBones.forEach((b,i) => b.quaternion.copy(baseRotations[i]));
     mixer.update(dt);
     overlayBones.forEach((b,i) => baseRotations[i].copy(b.quaternion));
+    footPose.apply();
   }
   const clips = Object.fromEntries(gltf.animations.map(c => [c.name, c.clone().optimize()]));
   // 坐着說話仍保留盤腿姿勢，只套用說話的上身、手勢及面部動畫。
