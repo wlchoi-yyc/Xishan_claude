@@ -350,6 +350,61 @@ export async function chapter5() {
 }
 
 // ================= 第六關 =================
+// 石縫伸出的枯枝，枝上勾着一條撕破的布（柳宗元衣角），隨風飄動
+function makeSnaggedCloth() {
+  const g = new THREE.Group();
+  const bark = new THREE.MeshLambertMaterial({ color: '#5e4a3a', flatShading: true });
+  const branch = (pts, r0, r1) => {
+    const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p)));
+    const geo = new THREE.TubeGeometry(curve, 10, r0, 6);
+    // 由粗到幼
+    const pos = geo.attributes.position, n = 11;
+    for (let i = 0; i < pos.count; i++) {
+      const t = Math.floor(i / 7) / (n - 1), c = curve.getPointAt(Math.min(1, t));
+      const k = r1 / r0 + (1 - r1 / r0) * (1 - t);
+      pos.setXYZ(i, c.x + (pos.getX(i) - c.x) * k, c.y + (pos.getY(i) - c.y) * k, c.z + (pos.getZ(i) - c.z) * k);
+    }
+    geo.computeVertexNormals();
+    return new THREE.Mesh(geo, bark);
+  };
+  // 主枝：從石縫斜斜伸出，末端微微上翹；旁邊再分出兩根細枝
+  g.add(branch([[-0.12, 0, 0], [0.12, 0.03, 0.01], [0.36, 0.08, 0.03], [0.55, 0.16, 0.02]], 0.028, 0.008));
+  g.add(branch([[0.22, 0.05, 0.015], [0.3, 0.16, 0.06], [0.36, 0.25, 0.08]], 0.012, 0.004));
+  g.add(branch([[0.4, 0.1, 0.03], [0.48, 0.07, -0.07], [0.55, 0.06, -0.12]], 0.01, 0.003));
+  // 石縫
+  const crack = new THREE.Mesh(new THREE.DodecahedronGeometry(0.09, 0), new THREE.MeshLambertMaterial({ color: '#4a463f', flatShading: true }));
+  crack.scale.set(0.6, 1, 1.3); crack.position.set(-0.1, 0, 0); g.add(crack);
+  // 布條：頂端繞在枝上，下端撕成參差的鬚邊
+  const W = 0.15, Hh = 0.36, sx = 5, sy = 10;
+  const geo = new THREE.PlaneGeometry(W, Hh, sx, sy);
+  geo.translate(0, -Hh / 2, 0);
+  const pos = geo.attributes.position, base = [];
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i), y = pos.getY(i);
+    const col = Math.round((x / W + 0.5) * sx);
+    if (y < -Hh + 0.001) y += [0.0, 0.07, 0.02, 0.1, 0.04, 0.0][col]; // 撕裂的下緣
+    if (y > -0.02) y = -0.02 * (1 - Math.cos((col / sx) * Math.PI * 2)) * 0.5; // 頂端繞枝
+    pos.setXYZ(i, x, y, 0); base.push([x, y]);
+  }
+  geo.computeVertexNormals();
+  const cloth = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: '#c3cec8', emissive: '#2a302d', side: THREE.DoubleSide }));
+  // 布面朝向崖外（玩家所在方向）
+  cloth.position.set(0.4, 0.09, 0.03); cloth.rotation.set(0.1, 1.25, -0.08);
+  g.add(cloth);
+  // 一縷鬆脫的絲線
+  const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.12, 4), new THREE.MeshLambertMaterial({ color: '#c9d2cd' }));
+  thread.position.set(0.45, 0.04, 0.04); thread.rotation.z = 0.5; g.add(thread);
+  g.userData.animate = (t) => {
+    for (let i = 0; i < pos.count; i++) {
+      const [x, y] = base[i], d = Math.max(0, -y) / Hh;
+      pos.setZ(i, Math.sin(t * 3.1 + y * 18 + x * 9) * 0.035 * d + Math.sin(t * 1.3) * 0.02 * d);
+      pos.setX(i, x + Math.sin(t * 2.3 + y * 12) * 0.008 * d);
+    }
+    pos.needsUpdate = true; geo.computeVertexNormals();
+  };
+  return g;
+}
+
 function cliffX(y) { return -y / 4.4; }
 const LEDGES = [
   { x: 3, z: 0, y: 0 },
@@ -470,7 +525,7 @@ export async function chapter6() {
   await ui.caption('攀援而登', { gloss: '攀：抓住；援：牽引。抓着草木、手腳並用地往上爬。', hold: 4.5 });
 
   const clueAt = [
-    { label: '勾在枝上的布絲', text: '一縷淺灰色的布絲勾在石縫的枝條上——和柳先生衣服的顏色一樣。', make: () => { const m = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 0.12), new THREE.MeshLambertMaterial({ color: '#a7b3b0', side: THREE.DoubleSide })); m.rotation.y = 0.8; return m; } },
+    { label: '勾在枝上的布絲', text: '石縫裏伸出一根枯枝，枝上勾着一縷撕破的淺灰色布條——和柳先生衣服的顏色一樣。', snag: true, make: makeSnaggedCloth },
     { label: '平台上的鞋印', text: '平台的泥上有一個鞋印，腳尖朝上。他就在前面。', make: () => makeFootprints([{ x: 0, z: -0.2 }, { x: 0, z: 0.2 }], () => 0.02, { opacity: 0.7 }) },
     { label: '竹杖', text: '柳先生的竹杖靠在石旁——山太陡，他要騰出雙手來爬了。', make: () => { const s = makeStaff(); s.rotation.z = 0.25; return s; } },
   ];
@@ -542,11 +597,23 @@ export async function chapter6() {
     if (s < clueAt.length) {
       const c = clueAt[s];
       const obj = c.make();
-      obj.position.set(N.x + 0.3, N.y + (s === 0 ? 0.6 : 0.02), N.z + 0.7);
+      if (c.snag) {
+        // 枯枝從平台旁的崖壁石縫伸出，約在胸口高度
+        const y = N.y + 1.5, z = N.z + 0.85;
+        // 二分法找出這個高度上真正的崖面位置（地形有起伏）
+        let lo = cliffX(y) - 3, hi = N.x;
+        for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (slopeH(m, z) > y) lo = m; else hi = m; }
+        obj.position.set(hi - 0.03, y, z);
+        obj.scale.setScalar(1.4);
+        const anim = (dt, t) => obj.userData.animate(t);
+        E.onUpdate.push(anim); obj.userData.stop = () => { const k = E.onUpdate.indexOf(anim); if (k >= 0) E.onUpdate.splice(k, 1); };
+      } else obj.position.set(N.x + 0.3, N.y + 0.02, N.z + 0.7);
       scene.add(obj);
-      await turnTo(Math.atan2(-(obj.position.x - p.pos.x), -(obj.position.z - p.pos.z)), -0.5, 0.8);
+      if (c.snag) await lookAt(obj.position.clone().add(new THREE.Vector3(0.45, -0.05, 0)), 0.9);
+      else await turnTo(Math.atan2(-(obj.position.x - p.pos.x), -(obj.position.z - p.pos.z)), -0.5, 0.8);
       setControls({ look: true, interact: true });
       await clue(obj, c.label, async () => { await ui.say('', c.text); ui.hideDialog(); }, { walk: false, range: 99 });
+      if (obj.userData.stop) obj.userData.stop();
       setControls({ move: false });
     }
 
