@@ -17,19 +17,19 @@ const GRAVITY = 30;
 
 const CHARS = [
   {
-    id: 'poodle', name: '紅貴賓', tag: '跳得最高！', img: 'assets/poodle.png', color: 0xffa04d, css: '#ffa04d',
+    id: 'poodle', name: '冬菇', tag: '紅貴賓・跳得最高！', img: 'assets/poodle.png', color: 0xffa04d, css: '#ffa04d',
     maxSpeed: 34, accel: 15, steer: 12.5, jump: 10.6, boostMul: 1.5,
     stats: { 速度: 4, 加速: 4, 靈活: 4, 跳躍: 5 },
     tail: [0.12, 0.6], tailR: 0.2, leg: 0.32,
   },
   {
-    id: 'fold', name: '摺耳貓', tag: '極速衝刺王！', img: 'assets/fold.png', color: 0x9a8cff, css: '#9a8cff',
+    id: 'fold', name: '墨墨', tag: '英短・極速衝刺王！', img: 'assets/fold.png', color: 0x9a8cff, css: '#9a8cff',
     maxSpeed: 35.2, accel: 13, steer: 11.2, jump: 9.4, boostMul: 1.58,
     stats: { 速度: 5, 加速: 3, 靈活: 3, 跳躍: 3 },
     tail: [0.17, 0.74], tailR: 0.24, leg: 0.3,
   },
   {
-    id: 'exotic', name: '異國短毛貓', tag: '轉彎最靈活！', img: 'assets/exotic.png', color: 0xff6fae, css: '#ff6fae',
+    id: 'exotic', name: '粉粉', tag: '美短・轉彎最靈活！', img: 'assets/exotic.png', color: 0xff6fae, css: '#ff6fae',
     maxSpeed: 33.6, accel: 18, steer: 14.5, jump: 9.8, boostMul: 1.5,
     stats: { 速度: 3, 加速: 5, 靈活: 5, 跳躍: 4 },
     tail: [0.14, 0.74], tailR: 0.22, leg: 0.3,
