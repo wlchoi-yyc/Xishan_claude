@@ -3,3 +3,4 @@ dist/
 .firebase/
 gha-creds-*.json
 firebase-debug.log
+__pycache__/
