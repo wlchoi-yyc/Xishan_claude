@@ -165,7 +165,7 @@ def hands_behind(rig, p=None):
     return p
 
 def seated(rig):
-    """盤膝而坐：長袍覆蓋雙膝，雙手放在膝上。"""
+    """盤膝而坐：長袍覆蓋雙膝，雙手交疊放在腿上。"""
     p = stand(rig).copy()
     p.move(0, -0.395, -0.02)
     p.set('Hips', ry(0), rx(4))
@@ -174,9 +174,13 @@ def seated(rig):
         p.set(f'{side}UpLeg', ry(sg * 85), rx(-80), ry(sg * 40))
         p.set(f'{side}Leg', hinge(rig, f'{side}Leg', -140))
         p.set(f'{side}Foot', rx(20))
-        p.set(f'{side}Arm', rz(-sg * 22), rx(-32), ry(-sg * 8))
-        p.set(f'{side}ForeArm', hinge(rig, f'{side}ForeArm', 40), ry(-sg * 10))
-        p.set(f'{side}Hand', rx(18))
+    # 上身前傾後，頸和頭稍為抬起，平視前方
+    p.r('Neck', rx(-5)); p.r('Head', rx(-6))
+    # 雙手交疊放在腿上（左手在上）
+    print('lap L', reach(p, 'Left', [0.04, 0.175, 0.17], {0: 0, 1: 10, 3: 20}))
+    print('lap R', reach(p, 'Right', [-0.035, 0.165, 0.155], {0: 0, 1: 10, 3: 20}))
+    p.set('LeftHand', rz(-20)); p.set('RightHand', rz(20))
+    curl(p, 'Left', 22); curl(p, 'Right', 22)
     return p
 
 def lying(rig):

@@ -173,7 +173,7 @@ export async function makeLiuCharacter(opts = {}) {
     ud.extraUpdate?.(dt);
   };
 
-  const pos = new THREE.Vector3(), headPos = new THREE.Vector3();
+  const pos = new THREE.Vector3(), headPos = new THREE.Vector3(), pitchAxis = new THREE.Vector3();
   const angleDiff = (a, b) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
   ud.updateLook = (target, dt) => {
     let yaw = 0, pitch = 0, wantTwist = 0;
@@ -186,14 +186,16 @@ export async function makeLiuCharacter(opts = {}) {
       if (ud.pose === 'sit') wantTwist = THREE.MathUtils.clamp(yaw * .45, -.65, .65);
       yaw = THREE.MathUtils.clamp(yaw - wantTwist, -1.0, 1.0);
       head.getWorldPosition(headPos);
-      pitch = THREE.MathUtils.clamp(-Math.atan2(target.y - headPos.y - .05, Math.hypot(target.x - headPos.x, target.z - headPos.z)), -.45, .45);
+      pitch = THREE.MathUtils.clamp(-Math.atan2(target.y - headPos.y, Math.hypot(target.x - headPos.x, target.z - headPos.z)), -.55, .45);
       if (drinking) { yaw *= .3; pitch = 0; }
     }
     const blend = Math.min(1, dt * (ud.turnSpeed ?? 2.2) * 1.6);
     gazeYaw += (yaw - gazeYaw) * blend; gazePitch += (pitch - gazePitch) * blend; twist += (wantTwist - twist) * blend;
     rotateChar(spine, Y, twist);
     rotateChar(neck, Y, gazeYaw * .4); rotateChar(head, Y, gazeYaw * .6);
-    rotateChar(neck, X, gazePitch * .4); rotateChar(head, X, gazePitch * .6);
+    // 抬頭／低頭要繞「頭轉向之後」的左右軸，否則轉身望人時會變成歪頭。
+    rotateChar(neck, pitchAxis.copy(X).applyAxisAngle(Y, twist + gazeYaw * .4), gazePitch * .4);
+    rotateChar(head, pitchAxis.copy(X).applyAxisAngle(Y, twist + gazeYaw), gazePitch * .6);
     placeHeld();
   };
 
