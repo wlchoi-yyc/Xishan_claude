@@ -150,6 +150,43 @@ def reach(p, side, target, prefer=None):
     arm(p, side, *best)
     return best
 
+def orient_hand(p, side, f_des, n_des):
+    """把手掌轉到指定方向：f_des 手指方向、n_des 掌心朝向（角色座標）。"""
+    rig = p.rig; sg = 1 if side == 'Left' else -1
+    H, F = f'{side}Hand', f'{side}ForeArm'
+    Wr = rig.Wrot[H]
+    f_loc = qrot(qinv(Wr), rig.dir(H, f'{side}HandMiddle1'))
+    n_loc = qrot(qinv(Wr), [-sg, 0, 0])          # 靜止 A 字姿勢時掌心朝向大腿
+    o = rig.fk(p, [H]); Wh = o[H][1]
+    f_now = qrot(Wh, f_loc); n_now = qrot(Wh, n_loc)
+    def frame(f, n):
+        f = np.asarray(f, float); f /= np.linalg.norm(f)
+        n = np.asarray(n, float); n = n - f * np.dot(n, f); n /= np.linalg.norm(n)
+        return np.stack([f, n, np.cross(f, n)], 1)
+    M = frame(f_des, n_des) @ frame(f_now, n_now).T
+    # 旋轉矩陣 → 四元數
+    w = np.sqrt(max(0, 1 + M[0, 0] + M[1, 1] + M[2, 2])) / 2
+    x = np.copysign(np.sqrt(max(0, 1 + M[0, 0] - M[1, 1] - M[2, 2])) / 2, M[2, 1] - M[1, 2])
+    y = np.copysign(np.sqrt(max(0, 1 - M[0, 0] + M[1, 1] - M[2, 2])) / 2, M[0, 2] - M[2, 0])
+    z = np.copysign(np.sqrt(max(0, 1 - M[0, 0] - M[1, 1] + M[2, 2])) / 2, M[1, 0] - M[0, 1])
+    Q = np.array([x, y, z, w])
+    Dp = qmul(o[F][1], qinv(rig.Wrot[F]))       # 前臂的累積轉動
+    p.R[H] = qmul(qinv(Dp), qmul(Q, qmul(Dp, p.R[H])))
+    return p
+
+def hands_on_knees(p):
+    """雙手分開，掌心向下輕放在兩膝上，手指自然微曲。"""
+    rig = p.rig
+    for side, sg in (('Left', 1), ('Right', -1)):
+        o = rig.fk(p, [f'{side}UpLeg', f'{side}Leg'])
+        hip, knee = o[f'{side}UpLeg'][0], o[f'{side}Leg'][0]
+        wrist = hip + (knee - hip) * 0.62 + np.array([-sg * 0.005, 0.045, 0])
+        print('knee', side, reach(p, side, wrist, {0: 0, 1: 10, 3: 0}))
+        d = knee - hip; d[1] = 0; d /= np.linalg.norm(d)
+        orient_hand(p, side, d + np.array([0, -0.35, 0]), [0, -1, 0])
+        curl(p, side, 14)
+    return p
+
 def stand(rig):
     p = Pose(rig)
     curl(p, 'Left', 12); curl(p, 'Right', 12)
@@ -165,7 +202,7 @@ def hands_behind(rig, p=None):
     return p
 
 def seated(rig):
-    """盤膝而坐：長袍覆蓋雙膝，雙手交疊放在腿上。"""
+    """盤膝而坐：長袍覆蓋雙膝，雙手分開輕放膝上。"""
     p = stand(rig).copy()
     p.move(0, -0.395, -0.02)
     p.set('Hips', ry(0), rx(4))
@@ -176,11 +213,7 @@ def seated(rig):
         p.set(f'{side}Foot', rx(20))
     # 上身前傾後，頸和頭稍為抬起，平視前方
     p.r('Neck', rx(-5)); p.r('Head', rx(-6))
-    # 雙手交疊放在腿上（左手在上）
-    print('lap L', reach(p, 'Left', [0.04, 0.175, 0.17], {0: 0, 1: 10, 3: 20}))
-    print('lap R', reach(p, 'Right', [-0.035, 0.165, 0.155], {0: 0, 1: 10, 3: 20}))
-    p.set('LeftHand', rz(-20)); p.set('RightHand', rz(20))
-    curl(p, 'Left', 22); curl(p, 'Right', 22)
+    hands_on_knees(p)
     return p
 
 def lying(rig):
@@ -267,8 +300,14 @@ def build_all(rig):
     C['StandUp'] = sample(rig, [(1.8 - t, p) for t, p in reversed(sit_keys)])
 
     C['SeatedIdle'] = sample(rig, [(0, Sit), (4, Sit)], fx=breathe(1.2, 4, 1.2))
-    st1 = talk_arm(rig, Sit.copy(), 'Right', 0.9, 0.8); st1.r('Head', rx(4))
-    st2 = talk_arm(rig, Sit.copy(), 'Right', 0.7, 1.2); st2.r('Head', rx(-3), ry(-5))
+    def seated_gesture(lift, out, open_):
+        q = Sit.copy(); o = rig.fk(q, ['RightHand']); w = o['RightHand'][0]
+        reach(q, 'Right', w + np.array([-out, lift, 0.07]), {0: 0, 1: 10, 3: 0})
+        orient_hand(q, 'Right', [-0.3 - out * 3, 0.1, 1], [0.35, 0.55 + 0.4 * open_, 0.25])
+        curl(q, 'Right', 6)
+        return q
+    st1 = seated_gesture(0.10, 0.02, 0.6); st1.r('Head', rx(4))
+    st2 = seated_gesture(0.13, 0.05, 0.9); st2.r('Head', rx(-3), ry(-5))
     C['SeatedTalk'] = sample(rig, [(0, Sit), (0.7, st1), (1.6, st2), (2.5, st1), (4.0, Sit)], fx=breathe(1, 4, 1))
 
     # 舉杯飲酒：k 由劇情控制（0→2）

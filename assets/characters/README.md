@@ -15,7 +15,7 @@
 | Walk | 負手、步伐從容的「施施而行」（第二關情景重現） |
 | Talk / SeatedTalk | 站着／坐着說話，右手自然比劃 |
 | SitDown / StandUp | 屈膝蹲低再盤膝坐下；反向站起 |
-| SeatedIdle | 盤膝而坐，雙手交疊放在腿上 |
+| SeatedIdle | 盤膝而坐，雙手分開、掌心向下輕放膝上 |
 | Drink | 舉杯到唇（0→1）、仰頭飲盡（1→2），由劇情 `drinkPose(k)` 控制 |
 | LieDown / LyingIdle | 由坐姿向後躺下，右臂枕頭（醉則更相枕以臥） |
 | Invite | 左手向身旁攤開——「坐下來吧」 |
