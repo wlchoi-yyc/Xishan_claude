@@ -1,3 +1,4 @@
+import { loadLiuCharacter } from './liu-character.js';
 // 主程式：標題畫面、章節流程
 import { E, freeze } from './engine.js';
 import * as ui from './ui.js';
@@ -14,6 +15,7 @@ import { applyWind } from './world.js';
 
 // 標題畫面時已在背景載入景物素材；按「開始」時最多再等幾秒，載不到便用程式樹
 const natureReady = loadNature(applyWind);
+loadLiuCharacter();
 
 const CHAPTERS = [
   { name: '序章　柳宗元去了哪裏？', run: prologue },

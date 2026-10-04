@@ -443,6 +443,7 @@ function updatePersons(dt) {
     const ud = person.userData;
     if (ud.update) ud.update(dt, E.time);
     const target = ud.watchCamera ? camera.position : ud.lookTarget;
+    if (ud.updateLook) { ud.updateLook(target, dt); continue; }
     const seated = ud.pose === 'sit' || ud.pose === 'lie';
     const k = (sp) => Math.min(1, dt * sp);
     if (!target) {

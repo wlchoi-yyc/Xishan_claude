@@ -1,3 +1,4 @@
+import { makeLiuCharacter } from '../liu-character.js';
 // 第七關：西山之頂——重組全景
 // 第八關：為甚麼西山「怪特」？
 // 第九關：找到柳宗元（山頂黃昏）
@@ -502,7 +503,7 @@ export async function chapter9() {
   await golden;
 
   // 柳宗元（背對玩家，坐在崖邊）
-  const liu = makePerson({ preset: 'liu', name: '柳宗元' });
+  const liu = await makeLiuCharacter({ name: '柳宗元' });
   liu.userData.setPose('sit');
   liu.position.set(LEDGE.x, LEDGE.y, LEDGE.z);
   liu.rotation.y = -Math.PI / 2; // 面向西（夕陽）

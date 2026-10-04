@@ -1,3 +1,4 @@
+import { makeLiuCharacter } from '../liu-character.js';
 // 第一關：尋找舊足跡（永州山林）
 // 第二關：重建「平日遊山」（山林深處）
 import { E, THREE, ui, audio, enter, clue, watch, dist2D, until } from './common.js';
@@ -484,7 +485,7 @@ export async function chapter2() {
   // 走到草地邊，看「當時的情景」
   await moveTo(2.5, 8.5, 1.4);
   await lookAt(new THREE.Vector3(-0.6, gladeHeight(-0.6, 2) + 0.4, 2), 1.2);
-  const liu = makePerson({ preset: 'liu' });
+  const liu = await makeLiuCharacter();
   const f1 = makePerson({ preset: 'friend1' });
   const f2 = makePerson({ preset: 'friend2' });
   const group = [liu, f1, f2];
@@ -501,7 +502,7 @@ export async function chapter2() {
   await tween(4, k => group.forEach((p, i) => { const x = lerp(starts[i].x, seats[i].x, k), z = lerp(starts[i].z, seats[i].z, k); p.position.set(x, H(x, z), z); }), t => t);
   group.forEach((p, i) => { p.userData.walking = false; p.rotation.y = seats[i].ry; p.userData.setPose('sit'); });
   ui.whisper('披草而坐', { hold: 2.4 });
-  await wait(2.2);
+  await wait(2.5);
   // 喝酒
   // 右手握着小酒壺的頸部，舉到嘴邊仰頭而飲
   const cupPot = makeWinePot('#7a8a70'); cupPot.scale.setScalar(0.5);
@@ -530,7 +531,7 @@ export async function chapter2() {
   // 醒來、回家
   group.forEach((p, i) => { p.userData.setPose('stand'); p.position.set(seats[i].x, H(seats[i].x, seats[i].z), seats[i].z); p.rotation.y = Math.atan2(-18 - seats[i].x, -20 - seats[i].z); });
   ui.whisper('覺而起，起而歸。', { hold: 2.8 });
-  await wait(0.6);
+  await wait(liu.userData.isBlenderLiu ? 5.8 : 0.6);
   group.forEach(p => p.userData.walking = true);
   const ends = [{ x: -17, z: -19 }, { x: -18, z: -17 }, { x: -15, z: -21 }];
   await tween(4, k => {
