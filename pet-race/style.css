@@ -219,3 +219,10 @@ body.touch #combo { bottom: 118px; }
   .help { font-size: 12px; }
   .big { font-size: 22px; padding: 12px 30px; }
 }
+@media (max-height: 760px) {
+  #resultImg { max-height: 48vh; }
+  .result-panel { margin-top: -18px; padding: 10px 16px 14px; }
+  .result-panel h2 { font-size: 24px; margin-bottom: 6px; }
+  #resultStats { gap: 6px; margin-bottom: 10px; }
+  #resultStats b { font-size: 20px; }
+}
