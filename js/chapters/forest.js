@@ -499,7 +499,8 @@ export async function chapter2() {
   group.forEach((p, i) => { p.position.set(starts[i].x, H(starts[i].x, starts[i].z), starts[i].z); p.rotation.y = Math.atan2(seats[i].x - starts[i].x, seats[i].z - starts[i].z); });
   await tween(1.2, k => setOpacity(k * 0.75));
 
-  // 走入
+  // 走入（施施而行：負手、步伐從容；情景重現的步速較快）
+  liu.userData.walkRate = 2;
   group.forEach(p => p.userData.walking = true);
   await tween(4, k => group.forEach((p, i) => { const x = lerp(starts[i].x, seats[i].x, k), z = lerp(starts[i].z, seats[i].z, k); p.position.set(x, H(x, z), z); }), t => t);
   group.forEach((p, i) => { p.userData.walking = false; p.rotation.y = seats[i].ry; p.userData.setPose('sit'); });
@@ -533,7 +534,7 @@ export async function chapter2() {
   // 醒來、回家
   group.forEach((p, i) => { p.userData.setPose('stand'); p.position.set(seats[i].x, H(seats[i].x, seats[i].z), seats[i].z); p.rotation.y = Math.atan2(-18 - seats[i].x, -20 - seats[i].z); });
   ui.whisper('覺而起，起而歸。', { hold: 2.8 });
-  await wait(liu.userData.isBlenderLiu ? 5.8 : 0.6);
+  await wait(liu.userData.isBlenderLiu ? 4.0 : 0.6);
   group.forEach(p => p.userData.walking = true);
   const ends = [{ x: -17, z: -19 }, { x: -18, z: -17 }, { x: -15, z: -21 }];
   await tween(4, k => {

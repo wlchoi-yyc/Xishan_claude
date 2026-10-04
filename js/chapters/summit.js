@@ -560,11 +560,24 @@ export async function chapter9() {
   await ui.say('柳宗元', '我現在……仍不想回去。');
   await ui.say('柳宗元', '既然你千辛萬苦來到這裏，不如先別急着走。');
   // 指向旁邊的位置
-  liu.userData.customArms = true;
-  await tween(0.8, k => { liu.userData.armL.rotation.set(lerp(-0.7, -1.2, k), 0, lerp(0.1, 0.9, k)); });
-  await ui.say('柳宗元', '坐下來吧。');
-  await tween(0.8, k => { liu.userData.armL.rotation.set(lerp(-1.2, -0.7, k), 0, lerp(0.9, 0.1, k)); });
+  if (liu.userData.isBlenderLiu) {
+    // 左手向身旁攤開，邀請玩家坐下
+    const invite = liu.userData.gesture('Invite');
+    await ui.say('柳宗元', '坐下來吧。');
+    await invite;
+  } else {
+    liu.userData.customArms = true;
+    await tween(0.8, k => { liu.userData.armL.rotation.set(lerp(-0.7, -1.2, k), 0, lerp(0.1, 0.9, k)); });
+    await ui.say('柳宗元', '坐下來吧。');
+    await tween(0.8, k => { liu.userData.armL.rotation.set(lerp(-1.2, -0.7, k), 0, lerp(0.9, 0.1, k)); });
+  }
   await ui.say('柳宗元', '不要想着趕路，也不要想別的事情。');
+  // 伸手指向遠方的山和水
+  if (liu.userData.isBlenderLiu) {
+    watch(liu, false);
+    liu.userData.lookTarget = new THREE.Vector3(-2000, -150, 120);
+    liu.userData.gesture('PointFar').then(() => watch(liu, true));
+  }
   await ui.say('柳宗元', '看看這山，看看遠處的水。');
   await ui.say('柳宗元', '我們一起坐一會兒，靜靜地感受——人和這片天地，原來可以合而為一。');
   await ui.say('柳宗元', '也許你便會明白，為甚麼我不想離開。');
@@ -650,6 +663,8 @@ export async function chapter9() {
   await c2;
   await tween(0.8, k => liu.userData.drinkPose(1 - k));
   liu.userData.releaseCup();
+  // 頹然就醉：身子微微搖晃，頭慢慢垂下
+  liu.userData.setIdle?.('DrunkSway');
   ui.journalAdd('活動', '引觴滿酌，頹然就醉，不知日之入。', '引觴滿酌，頹然就醉，不知日之入');
 
   // 第四階段：蒼然暮色，自遠而至
@@ -662,6 +677,7 @@ export async function chapter9() {
   await c3;
   ui.journalAdd('景物', '暮色由遠而近，直到甚麼也看不見。', '蒼然暮色，自遠而至，至無所見');
 
+  liu.userData.setIdle?.(null);
   await ui.say('柳宗元', '天已黑了。');
   await ui.choose([{ label: '現在總該回去了吧？' }], { name: '你' });
   watch(liu, true);
@@ -725,10 +741,15 @@ async function epilogue(w, liu) {
   ], { name: '你' });
   if (ans === 'C') {
     ui.hideDialog();
+    // 微笑，向玩家拱手作揖
+    const bow = liu.userData.gesture?.('Bow');
     await ui.whisper('柳宗元微笑。', { hold: 2.4 });
+    await bow;
   } else {
     await ui.say('柳宗元', '也對。');
   }
+  // 之後負手而立，望向遠方
+  liu.userData.setIdle?.('GazeIdle');
   watch(liu, false);
   liu.userData.lookTarget = new THREE.Vector3(-2000, -100, 300);
   await wait(1.2);

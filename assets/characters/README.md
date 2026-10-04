@@ -1,14 +1,34 @@
-# 柳宗元 Blender 角色
+# 柳宗元立體角色
 
-The GLB reconstructed from `liu-zongyuan/part-00.bin` through `part-18.bin` is the rigged Blender model extracted without geometry changes from the approved `Liu_Blender_Preview.html` (4 October 2026, Hong Kong time).
+`liu-zongyuan.glb`（約 3.2MB）由老師提供的 Tripo 模型（`Liuidle3dmodel.glb`，13.4MB）經 `tools/liu-model/build.py` 處理而成：
 
-- 3,385,532 bytes; 54,670 source triangles; eight authored animation clips.
-- Used in chapter 2's recollection and chapter 9/epilogue.
-- `js/liu-character.js` owns loading, independent skeleton cloning, seated dialogue, prop attachment, animation transitions, and gaze overlays.
-- Loading begins after the existing authentication gate admits the game. If loading fails or exceeds eight seconds at character creation, the existing procedural person is used.
-- The original procedural actors remain in `js/people.js` for other roles and fallback.
-- Three.js r186 loader utilities are vendored under `lib/addons` and use the existing `lib/THREE_LICENSE`.
+- **骨架**：Mixamo 標準 65 節骨架，關節位置正確，沒有更動骨骼。
+- **蒙皮修正**：原模型的腰帶和整條長袍幾乎全綁在大腿骨上（髖骨只佔約 3%），左右亦不對稱，坐下時腰帶會被大腿拉走、走路時衣襬會在兩腿之間裂開。現已把長袍重新分配：腰部跟髖骨，下襬由左右大腿／小腿平滑過渡（中線兩側各 7.5 厘米漸變），12,817 個頂點受影響，手臂、頭部、鞋子不變。
+- **貼圖壓縮**：原本三張 4096×4096 貼圖（佔顯示記憶體約 200MB，平板／手機容易卡頓）改為 2048 顏色貼圖＋1024 法線貼圖；金屬／粗糙度貼圖幾乎是常數，改用材質參數。
+- **單一網格、38,625 個三角形**（舊 Blender 模型為 13 個網格、54,670 個三角形）。
 
-Validation: bundled the game with esbuild; parsed the GLB using the actual loader; exercised stand, sit, seated talk, drink, lie and return-to-standing, inspected CPU-skinned geometry and pose images. Browser/WebGL and physical mobile frame-rate validation were unavailable in the execution environment.
+## 劇情動作（烘焙在 GLB 內）
 
-The 19 binary parts concatenate in numeric order to the original GLB (SHA-256 f6f06314c34637beaad4836d6c46ad7c3accfc3f738ed90b9967e0304122dc08). The loader fetches at most four parts concurrently and parses once.
+| 動作 | 用途 |
+|---|---|
+| Idle | 原模型的呼吸待機 |
+| Walk | 負手、步伐從容的「施施而行」（第二關情景重現） |
+| Talk / SeatedTalk | 站着／坐着說話，右手自然比劃 |
+| SitDown / StandUp | 屈膝蹲低再盤膝坐下；反向站起 |
+| SeatedIdle | 盤膝而坐，雙手放膝上 |
+| Drink | 舉杯到唇（0→1）、仰頭飲盡（1→2），由劇情 `drinkPose(k)` 控制 |
+| LieDown / LyingIdle | 由坐姿向後躺下，右臂枕頭（醉則更相枕以臥） |
+| Invite | 左手向身旁攤開——「坐下來吧」 |
+| PointFar | 伸手指向遠方——「看看這山，看看遠處的水」 |
+| DrunkSway | 身體慢慢搖晃、頭垂下——「頹然就醉」 |
+| Bow | 拱手作揖（終章，玩家選 C 後柳宗元微笑作揖） |
+| GazeIdle | 負手遠眺（終章，「直到今天才知道——」） |
+
+`js/liu-character.js` 負責載入、獨立骨架複製、姿勢轉換、手勢（`gesture()`）、指定待機（`setIdle()`）、握杯及轉頭望向鏡頭。載入失敗或超過八秒時，改用 `js/people.js` 的程式人物。
+
+## 重新產生
+
+```
+python3 tools/liu-model/build.py 原始Tripo模型.glb assets/characters/liu-zongyuan.glb
+```
+需要 Python 3、numpy、Pillow。動作定義在 `tools/liu-model/anims.py`（以角色座標描述每節骨骼的轉動，手部位置以簡單 IK 搜尋）。`tools/liu-model/view.html?clip=Drink&t=0,1.25,2.5&views=front,side` 可經網頁伺服器預覽任何動作。

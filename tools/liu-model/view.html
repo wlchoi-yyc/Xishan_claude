@@ -1,0 +1,47 @@
+<!doctype html><html><body style="margin:0;background:#bbb"><canvas id=c></canvas>
+
+<script type="module">
+import * as THREE from '../../lib/three.module.js';
+import { GLTFLoader } from '../../lib/addons/loaders/GLTFLoader.js';
+const q=new URLSearchParams(location.search);
+const W=+q.get('w')||1400,H=+q.get('h')||800;
+const r=new THREE.WebGLRenderer({canvas:c,antialias:true}); r.setSize(W,H);
+const scene=new THREE.Scene(); scene.background=new THREE.Color('#c8c4b8');
+scene.add(new THREE.HemisphereLight('#fff','#665',2.2)); const d=new THREE.DirectionalLight('#fff',2); d.position.set(2,4,3); scene.add(d);
+const g=await new GLTFLoader().loadAsync(q.get('glb')||'../../assets/characters/liu-zongyuan.glb');
+const views=(q.get('views')||'front,side,back').split(',');
+const clipName=q.get('clip'); const times=(q.get('t')||'0').split(',').map(Number);
+const skel=q.get('skel')==='1', xray=q.get('xray')==='1';
+const panels=[];
+for(const t of times) for(const v of views) panels.push([t,v]);
+const n=panels.length; const pw=Math.floor(W/n);
+r.setScissorTest(true);
+const box=new THREE.Box3();
+// one instance; pose per time
+const root=g.scene; scene.add(root);
+if(xray) root.traverse(o=>{if(o.isMesh){o.material.transparent=true;o.material.opacity=.35;o.material.depthWrite=false;}});
+const helper=new THREE.SkeletonHelper(root); helper.material.depthTest=false; helper.material.linewidth=2; if(skel) scene.add(helper);
+const mixer=new THREE.AnimationMixer(root);
+const clip=clipName? g.animations.find(a=>a.name===clipName):null;
+const act=clip?mixer.clipAction(clip).play():null;
+window.info={clips:g.animations.map(a=>a.name+':'+a.duration.toFixed(2))};
+let i=0;
+for(const [t,v] of panels){
+  if(act){act.time=t; mixer.update(0);} root.updateMatrixWorld(true);
+  if(q.get('cup')){
+    if(!window.cup){window.cup=new THREE.Mesh(new THREE.CylinderGeometry(.022,.016,.035,12).translate(0,.017,0),new THREE.MeshStandardMaterial({color:'#7ab',roughness:.4}));scene.add(cup);}
+    const B=n=>root.getObjectByName('mixamorig'+n);const h=new THREE.Vector3(),m=new THREE.Vector3(),th=new THREE.Vector3();
+    B('RightHand').getWorldPosition(h);B('RightHandMiddle1').getWorldPosition(m);B('RightHandThumb1').getWorldPosition(th);
+    const p=h.clone().lerp(m,.8);th.sub(h);m.sub(h).normalize();th.addScaledVector(m,-th.dot(m)).normalize();p.addScaledVector(th,.035/1.85);
+    cup.position.copy(p);cup.scale.setScalar(1/1.85*1.4);const k=t/1.25;cup.rotation.set(-Math.max(0,k-1)*1.05,0,0);
+  }
+  box.setFromObject(root,true); const ctr=box.getCenter(new THREE.Vector3()), sz=box.getSize(new THREE.Vector3());
+  const hgt=Math.max(sz.y,sz.x,sz.z)*1.15;
+  const cam=new THREE.OrthographicCamera(-hgt/2*pw/H,hgt/2*pw/H,hgt/2,-hgt/2,.01,100);
+  const ang={front:0,side:Math.PI/2,back:Math.PI,left:-Math.PI/2,q:Math.PI/4,top:0}[v]??0;
+  const dist=10; cam.position.set(ctr.x+Math.sin(ang)*dist, ctr.y+(v==='top'?dist:0), ctr.z+Math.cos(ang)*dist); cam.lookAt(ctr);
+  r.setViewport(i*pw,0,pw,H); r.setScissor(i*pw,0,pw,H); r.render(scene,cam); i++;
+  window.info['bbox'+t+v]=[box.min.toArray().map(x=>+x.toFixed(3)),box.max.toArray().map(x=>+x.toFixed(3))];
+}
+window.__ready=true;
+</script></body></html>
