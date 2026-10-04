@@ -526,7 +526,8 @@ export async function chapter6() {
 
   const clueAt = [
     { label: '勾在枝上的布絲', text: '石縫裏伸出一根枯枝，枝上勾着一縷撕破的淺灰色布條——和柳先生衣服的顏色一樣。', snag: true, make: makeSnaggedCloth },
-    { label: '平台上的鞋印', text: '平台的泥上有一個鞋印，腳尖朝上。他就在前面。', make: () => makeFootprints([{ x: 0, z: -0.2 }, { x: 0, z: 0.2 }], () => 0.02, { opacity: 0.7 }) },
+    { label: '平台上的鞋印', text: '平台的泥上有一個鞋印，腳尖朝着山上。他就在前面。', make: () => makeFootprints([{ x: 0, z: 0 }], () => 0, { opacity: 0.7, dir: -Math.PI / 2, lift: 0.012 }) },
+
     { label: '竹杖', text: '柳先生的竹杖靠在石旁——山太陡，他要騰出雙手來爬了。', make: () => { const s = makeStaff(); s.rotation.z = 0.25; return s; } },
   ];
 
@@ -610,7 +611,7 @@ export async function chapter6() {
       } else obj.position.set(N.x + 0.3, N.y + 0.02, N.z + 0.7);
       scene.add(obj);
       if (c.snag) await lookAt(obj.position.clone().add(new THREE.Vector3(0.45, -0.05, 0)), 0.9);
-      else await turnTo(Math.atan2(-(obj.position.x - p.pos.x), -(obj.position.z - p.pos.z)), -0.5, 0.8);
+      else await lookAt(obj.position.clone().add(new THREE.Vector3(0, c.label === '竹杖' ? 0.6 : 0, 0)), 0.9);
       setControls({ look: true, interact: true });
       await clue(obj, c.label, async () => { await ui.say('', c.text); ui.hideDialog(); }, { walk: false, range: 99 });
       if (obj.userData.stop) obj.userData.stop();

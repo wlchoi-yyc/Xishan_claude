@@ -553,18 +553,60 @@ export function makeMat(color = '#c2a468') {
   }
   return g;
 }
-export function makeFootprints(points, heightAt, { color = '#3e3226', opacity = 0.55, size = 1 } = {}) {
+// 鞋印形狀（長約 26 cm）：前掌、窄腰、分開的鞋跟，再加幾道鞋底紋；mirror = 左右腳
+const _shoeGeo = {};
+function shoePrintGeo(mirror, size) {
+  const key = `${mirror}|${size}`;
+  if (_shoeGeo[key]) return _shoeGeo[key];
+  const S = 0.26 * size, m = mirror ? -1 : 1, X = (x) => x * m * S, Y = (y) => (y - 0.5) * S;
+  // 前掌：腳尖圓、內側較直、外側較圓
+  const fore = new THREE.Shape();
+  fore.moveTo(X(-0.12), Y(0.40));
+  fore.quadraticCurveTo(X(-0.19), Y(0.62), X(-0.15), Y(0.86));
+  fore.quadraticCurveTo(X(-0.10), Y(1.00), X(0.02), Y(1.00));
+  fore.quadraticCurveTo(X(0.17), Y(0.97), X(0.20), Y(0.78));
+  fore.quadraticCurveTo(X(0.21), Y(0.58), X(0.14), Y(0.40));
+  fore.quadraticCurveTo(X(0.01), Y(0.33), X(-0.12), Y(0.40));
+  // 鞋跟
+  const heel = new THREE.Shape();
+  heel.moveTo(X(-0.11), Y(0.27));
+  heel.quadraticCurveTo(X(-0.14), Y(0.04), X(0.0), Y(0.0));
+  heel.quadraticCurveTo(X(0.14), Y(0.04), X(0.11), Y(0.27));
+  heel.quadraticCurveTo(X(0.0), Y(0.31), X(-0.11), Y(0.27));
+  const sole = new THREE.ShapeGeometry([fore, heel], 6);
+  // 鞋底紋：前掌與鞋跟上幾道橫紋
+  const lines = [];
+  for (const [y, w] of [[0.48, 0.13], [0.58, 0.16], [0.68, 0.16], [0.78, 0.15], [0.88, 0.11], [0.09, 0.08], [0.19, 0.09]]) {
+    const g = new THREE.PlaneGeometry(w * 2 * S, 0.012 * S * 1.6); g.translate(m * 0.025 * S * (y > 0.4 ? 1 : 0), Y(y), 0.0005); lines.push(g);
+  }
+  const tread = mergeGeometriesSimple(lines);
+  for (const g of [sole, tread]) g.rotateX(Math.PI / 2); // 形狀 +Y（腳尖）→ 世界 +Z
+  return (_shoeGeo[key] = { sole, tread });
+}
+function mergeGeometriesSimple(list) {
+  const pos = [], idx = []; let o = 0;
+  for (const g of list) { const p = g.attributes.position.array; for (let i = 0; i < p.length; i++) pos.push(p[i]); for (const k of g.index.array) idx.push(k + o); o += p.length / 3; }
+  const out = new THREE.BufferGeometry(); out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); out.setIndex(idx); return out;
+}
+/** 一行鞋印。dir：只有一個點時的腳尖方向（弧度）；lift：離地高度 */
+export function makeFootprints(points, heightAt, { color = '#3e3226', opacity = 0.55, size = 1, dir = 0, lift = 0.08 } = {}) {
   const grp = new THREE.Group();
-  const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-  const g = new THREE.CircleGeometry(0.1 * size, 8); g.scale(1, 1.9, 1); g.rotateX(-Math.PI / 2);
+  const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 });
+  const mt = new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(0.55), transparent: true, opacity: Math.min(1, opacity * 1.25), depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3 });
+  const single = points.length === 1;
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
     const q = points[Math.min(points.length - 1, i + 1)], r = points[Math.max(0, i - 1)];
-    const ang = Math.atan2(q.x - r.x, q.z - r.z);
-    const side = i % 2 ? 1 : -1;
-    const f = new THREE.Mesh(g, m);
-    const ox = Math.cos(ang) * 0.13 * side, oz = -Math.sin(ang) * 0.13 * side;
-    f.position.set(p.x + ox, Math.max(heightAt(p.x + ox, p.z + oz), heightAt(p.x, p.z)) + 0.12, p.z + oz);
+    const ang = single ? dir : Math.atan2(q.x - r.x, q.z - r.z);
+    const side = single ? 0 : (i % 2 ? 1 : -1);
+    const { sole, tread } = shoePrintGeo(side > 0, size);
+    const f = new THREE.Group();
+    f.add(new THREE.Mesh(sole, m), new THREE.Mesh(tread, mt));
+    const ox = Math.cos(ang) * 0.09 * side, oz = -Math.sin(ang) * 0.09 * side;
+    const cx = p.x + ox, cz = p.z + oz, fx = Math.sin(ang) * 0.12, fz = Math.cos(ang) * 0.12;
+    // 取腳尖、腳跟、中心三點中最高者，免得鞋印陷進斜坡
+    const h = Math.max(heightAt(cx, cz), heightAt(cx + fx, cz + fz), heightAt(cx - fx, cz - fz));
+    f.position.set(cx, h + lift, cz);
     f.rotation.y = ang;
     grp.add(f);
   }
