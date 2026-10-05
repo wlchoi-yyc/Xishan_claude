@@ -240,7 +240,9 @@ canvas.addEventListener('pointermove', e => {
   if (pointer.down && e.pointerId === pointer.id) {
     const dx = e.clientX - pointer.lastX, dy = e.clientY - pointer.lastY;
     pointer.lastX = e.clientX; pointer.lastY = e.clientY;
-    if (!pointer.dragging && Math.hypot(e.clientX - pointer.sx, e.clientY - pointer.sy) > 6) pointer.dragging = true;
+    // 手指點擊時難免輕微移動：觸控要移動超過 16px 才算拖動（滑鼠 6px）
+    const dragMin = e.pointerType === 'mouse' ? 6 : 16;
+    if (!pointer.dragging && Math.hypot(e.clientX - pointer.sx, e.clientY - pointer.sy) > dragMin) pointer.dragging = true;
     if (pointer.toolDrag) {
       if (E.tool && E.tool.onDrag) E.tool.onDrag(e.clientX, e.clientY);
     } else if (pointer.dragging && E.input.look) {

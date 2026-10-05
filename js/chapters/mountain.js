@@ -95,6 +95,9 @@ function buildFoot() {
     b.scale.setScalar(1.2);
     scene.add(b);
     b.userData.hp = 3; b.userData.kind = 'bush';
+    // 灌木枝葉稀疏，另加一個看不見的範圍方便點擊（點到枝葉之間的空隙也算）
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(1.0, 10, 8), new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.y = 0.75; hit.scale.y = 0.9; b.add(hit);
     bushes.push(b);
   });
   const thatch = [];
@@ -241,12 +244,32 @@ export async function chapter5() {
     if (cut === world.bushes.length && burned === world.thatch.length) resolveAll();
   };
   const targets = () => [...world.bushes.filter(b => b.userData.hp > 0), ...world.thatch.filter(t => t.userData.heat < 1)];
-  const hitTarget = (x, y) => {
+  const kindOf = (o) => { while (o && !o.userData.kind) o = o.parent; return o; };
+  // prefer：同一條射線上若有這類目標，優先選它（例如斧頭優先選灌木，不會被後面的茅草擋住）
+  const hitTarget = (x, y, prefer = null) => {
     const hits = raycastFrom(x, y, targets());
     if (!hits.length) return null;
-    let o = hits[0].object;
-    while (o && !o.userData.kind) o = o.parent;
-    return o ? { obj: o, dist: hits[0].distance, point: hits[0].point } : null;
+    let h = hits[0];
+    if (prefer) { const p = hits.find(q => kindOf(q.object)?.userData.kind === prefer); if (p) h = p; }
+    const o = kindOf(h.object);
+    return o ? { obj: o, dist: h.distance, point: h.point } : null;
+  };
+  // 與玩家的水平距離（灌木分前後兩排，以中心計算比射線距離穩定）
+  const flatDist = (o) => Math.hypot(o.position.x - E.player.pos.x, o.position.z - E.player.pos.z);
+  const REACH = 6.2;
+  // 點擊位置附近（螢幕上 110px 內）最近、夠得着的灌木
+  const _v = new THREE.Vector3();
+  const nearestBushOnScreen = (x, y) => {
+    let best = null, bestD = 110;
+    for (const b of world.bushes) {
+      if (b.userData.hp <= 0 || flatDist(b) > REACH) continue;
+      b.getWorldPosition(_v); _v.y += 0.7; _v.project(E.camera);
+      if (_v.z > 1) continue;
+      const sx = (_v.x + 1) / 2 * window.innerWidth, sy = (1 - _v.y) / 2 * window.innerHeight;
+      const d = Math.hypot(sx - x, sy - y);
+      if (d < bestD) { bestD = d; best = b; }
+    }
+    return best;
   };
   let swinging = false;
   const swing = async () => {
@@ -258,16 +281,20 @@ export async function chapter5() {
   let burning = null;
   Object.assign(toolHandlers, {
     axe: {
-      hover: (x, y) => { const h = hitTarget(x, y); return h && h.obj.userData.kind === 'bush' ? '砍' : null; },
+      hover: (x, y) => { const h = hitTarget(x, y, 'bush'); return h && h.obj.userData.kind === 'bush' ? '砍' : null; },
       onClick: (x, y) => {
-        const h = hitTarget(x, y);
-        if (!h) return false;
-        if (h.obj.userData.kind !== 'bush') { ui.toast('茅草太密，砍不完——試試用火把。'); return true; }
-        if (h.dist > 4.8) { ui.toast('太遠了，走近一點。'); return true; }
+        const h = hitTarget(x, y, 'bush');
+        let b = h && h.obj.userData.kind === 'bush' ? h.obj : null;
+        // 沒有直接點中：選點擊位置附近夠得着的灌木
+        if (!b || flatDist(b) > REACH) b = nearestBushOnScreen(x, y) || b;
+        if (!b) {
+          if (h && h.obj.userData.kind === 'grass') { ui.toast('茅草太密，砍不完——試試用火把。'); return true; }
+          return false;
+        }
+        if (flatDist(b) > REACH) { ui.toast('太遠了，走近一點。'); return true; }
         if (swinging) return true;
         swing();
         audio.chop();
-        const b = h.obj;
         b.userData.hp--;
         const r0 = b.rotation.z;
         tween(0.25, k => { b.rotation.z = r0 + Math.sin(k * Math.PI * 3) * 0.08; });
@@ -284,20 +311,22 @@ export async function chapter5() {
     torch: {
       hover: (x, y) => { const h = hitTarget(x, y); return h && h.obj.userData.kind === 'grass' ? '按住拖動，點燃茅草' : null; },
       onClick: (x, y) => {
-        const h = hitTarget(x, y);
+        const h = hitTarget(x, y, 'grass');
         if (h && h.obj.userData.kind === 'bush') { ui.toast('灌木太濕，燒不起來——試試用斧頭砍。'); return true; }
         return false;
       },
       onDown: (x, y) => {
-        const h = hitTarget(x, y);
+        const h = hitTarget(x, y, 'grass');
         if (!h || h.obj.userData.kind !== 'grass') return false;
         if (h.dist > 9) { ui.toast('太遠了，走近一點。'); return false; }
         burning = h.obj; return true;
       },
-      onDrag: (x, y) => { const h = hitTarget(x, y); burning = (h && h.obj.userData.kind === 'grass' && h.dist < 9) ? h.obj : null; if (burning) burning.userData.heat += 0.03; },
+      onDrag: (x, y) => { const h = hitTarget(x, y, 'grass'); burning = (h && h.obj.userData.kind === 'grass' && h.dist < 9) ? h.obj : null; if (burning) burning.userData.heat += 0.03; },
       onUp: () => { burning = null; },
     },
   });
+  // 拿到工具時已自動選上，但當時砍／燒的動作還未設定；設定好後重新套用目前的工具，不用再按一次。
+  if (current) setTool(current);
   // 燃燒進度
   let crackleT = 0;
   const burnUpdate = (dt) => {
