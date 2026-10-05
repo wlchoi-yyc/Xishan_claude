@@ -128,14 +128,15 @@ def arm(p, side, twist, out, fwd, cross, elbow):
     p.set(f'{side}ForeArm', hinge(rig, f'{side}ForeArm', elbow))
     return p
 
-def reach(p, side, target, prefer=None):
-    """在角色座標中把手腕移到 target（粗略網格搜尋＋細化）。"""
+def reach(p, side, target, prefer=None, elbow_max=None):
+    """在角色座標中把手腕移到 target（粗略網格搜尋＋細化）。elbow_max：手肘最高位置（避免抬肘）。"""
     target = np.asarray(target, float); prefer = prefer or {}
-    want = [f'{side}Hand']
+    want = [f'{side}Hand', f'{side}ForeArm']
     def cost(x):
         q = p.copy(); arm(q, side, *x)
-        h = p.rig.fk(q, want)[f'{side}Hand'][0]
+        o = p.rig.fk(q, want); h = o[f'{side}Hand'][0]
         c = np.linalg.norm(h - target)
+        if elbow_max is not None: c += 3 * max(0.0, o[f'{side}ForeArm'][0][1] - elbow_max)
         c += sum(0.0004 * abs(x[i] - v) for i, v in prefer.items())
         return c
     grid = itertools.product(range(-90, 91, 30), range(-30, 61, 15), range(-20, 151, 20), range(-30, 61, 15), range(0, 141, 20))
@@ -269,11 +270,11 @@ def cup_bottom(rig, p):
     f, n, u, palm = hand_frame(rig, p)
     return palm + n * CUP_N, n      # 杯子的「上」= 掌心朝向
 
-def place_cup(rig, p, bottom, f_des, n_des):
+def place_cup(rig, p, bottom, f_des, n_des, elbow_max=None):
     """讓握在右手的酒杯杯底到達 bottom，手掌朝向 f_des／n_des。"""
     wrist = np.array(bottom, float) - np.array([0, 0.01, 0.03])
     for _ in range(5):
-        reach(p, 'Right', wrist, {0: 0, 2: 25, 3: 0})
+        reach(p, 'Right', wrist, {0: 0, 2: 25, 3: 0}, elbow_max)
         orient_hand(p, 'Right', f_des, n_des)
         b, _ = cup_bottom(rig, p)
         wrist = wrist + (np.asarray(bottom) - b)
@@ -285,13 +286,18 @@ def place_cup(rig, p, bottom, f_des, n_des):
 def drink_keys(rig, base):
     """0：手放膝上；1：掌心托杯舉到唇前；2：手掌後傾，杯口貼唇、微微仰頭飲酒。"""
     up = base.copy(); up.r('Spine1', rx(-2))
+    # 手肘不高於胸口（肩下約 12 厘米），袖子不會擋住臉
+    sh = rig.fk(up, ['RightArm'])['RightArm'][0][1]
     m, _ = mouth(rig, up)
-    f1 = np.array([0.35, 0.0, 1.0]); n1 = np.array([0.0, 1.0, 0.0])
-    print('drink up'); place_cup(rig, up, m + np.array([0.0, -0.075, 0.075]), f1, n1)
-    tilt = up.copy(); tilt.r('Neck', rx(-8)); tilt.r('Head', rx(-10)); tilt.r('Spine2', rx(-3))
+    f1 = np.array([1.0, 0.0, 0.3]); n1 = np.array([0.0, 1.0, 0.0])   # 手指橫放在杯底下，不擋臉
+    print('drink up'); place_cup(rig, up, m + np.array([-0.005, -0.07, 0.07]), f1, n1, sh - 0.04)
+    tilt = up.copy(); tilt.r('Neck', rx(-10)); tilt.r('Head', rx(-14)); tilt.r('Spine2', rx(-4))
     m2, _ = mouth(rig, tilt)
-    T = rx(-50)                       # 杯口向臉傾側 50°
-    print('drink tilt'); place_cup(rig, tilt, m2 + np.array([0.0, -0.016, 0.056]), qrot(T, f1), qrot(T, n1))
+    T = rx(-35)                       # 杯口向臉傾側 35°，頭微仰配合
+    # 杯底在唇前下方，杯口近邊剛好碰到下唇
+    print('drink tilt'); place_cup(rig, tilt, m2 + np.array([-0.003, -0.026, 0.05]), qrot(T, f1), qrot(T, n1), sh - 0.02)
+    for nm, q in (('up', up), ('tilt', tilt)):
+        print('  elbow below shoulder', nm, round(float(sh - rig.fk(q, ['RightForeArm'])['RightForeArm'][0][1]), 3))
     return base, up, tilt
 
 def build_all(rig):
