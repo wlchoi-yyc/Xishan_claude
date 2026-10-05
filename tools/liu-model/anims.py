@@ -175,13 +175,13 @@ def orient_hand(p, side, f_des, n_des):
     p.R[H] = qmul(qinv(Dp), qmul(Q, qmul(Dp, p.R[H])))
     return p
 
-def hands_on_knees(p):
+def hands_on_knees(p, lift=0.045, along=0.62):
     """雙手分開，掌心向下輕放在兩膝上，手指自然微曲。"""
     rig = p.rig
     for side, sg in (('Left', 1), ('Right', -1)):
         o = rig.fk(p, [f'{side}UpLeg', f'{side}Leg'])
         hip, knee = o[f'{side}UpLeg'][0], o[f'{side}Leg'][0]
-        wrist = hip + (knee - hip) * 0.62 + np.array([-sg * 0.005, 0.045, 0])
+        wrist = hip + (knee - hip) * along + np.array([-sg * 0.005, lift, 0])
         print('knee', side, reach(p, side, wrist, {0: 0, 1: 10, 3: 0}))
         d = knee - hip; d[1] = 0; d /= np.linalg.norm(d)
         orient_hand(p, side, d + np.array([0, -0.35, 0]), [0, -1, 0])
@@ -203,18 +203,21 @@ def hands_behind(rig, p=None):
     return p
 
 def seated(rig):
-    """盤膝而坐：長袍覆蓋雙膝，雙手分開輕放膝上。"""
+    """跪坐（正坐）：雙膝着地、臀部坐在腳跟上，雙腿併攏；長袍自然蓋住膝頭。雙手分開放在大腿上。"""
     p = stand(rig).copy()
-    p.move(0, -0.395, -0.02)
-    p.set('Hips', ry(0), rx(4))
-    p.r('Spine', rx(4)); p.r('Spine1', rx(3))
+    p.set('Hips', rx(2))
+    p.r('Spine', rx(2)); p.r('Spine1', rx(1))
     for side, sg in (('Left', 1), ('Right', -1)):
-        p.set(f'{side}UpLeg', ry(sg * 85), rx(-80), ry(sg * 40))
-        p.set(f'{side}Leg', hinge(rig, f'{side}Leg', -140))
-        p.set(f'{side}Foot', rx(20))
-    # 上身前傾後，頸和頭稍為抬起，平視前方
-    p.r('Neck', rx(-5)); p.r('Head', rx(-6))
-    hands_on_knees(p)
+        p.set(f'{side}UpLeg', rx(-80), ry(sg * 6))
+        p.set(f'{side}Leg', hinge(rig, f'{side}Leg', -165))
+        p.set(f'{side}Foot', rx(-60))
+    # 讓膝頭剛好着地：按正向運算的最低點調整臀部高度
+    o = rig.fk(p, ['LeftLeg', 'RightLeg', 'LeftFoot', 'RightFoot'])
+    low = min(o['LeftLeg'][0][1], o['RightLeg'][0][1])
+    p.move(0, 0.03 - low, 0)
+    # 頸和頭稍為抬起，平視前方
+    p.r('Neck', rx(-3)); p.r('Head', rx(-3))
+    hands_on_knees(p, lift=0.075, along=0.55)   # 長袍蓋在大腿上較厚，手要放在袍面上
     return p
 
 def lying(rig):

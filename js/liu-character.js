@@ -37,6 +37,9 @@ export async function makeLiuCharacter(opts = {}) {
     o.castShadow = false;
     o.receiveShadow = true;
   });
+  // 口部張合：模型內的形變目標 MouthOpen（說話時張合，其餘時間閉口）
+  let mouthMesh = null, mouthIdx = -1, mouth = 0;
+  actor.traverse(o => { if (o.morphTargetDictionary && 'MouthOpen' in o.morphTargetDictionary) { mouthMesh = o; mouthIdx = o.morphTargetDictionary.MouthOpen; } });
   const bone = name => actor.getObjectByName(THREE.PropertyBinding.sanitizeNodeName('mixamorig:' + name));
   const head = bone('Head'), neck = bone('Neck'), spine = bone('Spine'), chest = bone('Spine2');
   const hand = bone('RightHand'), middle = bone('RightHandMiddle1'), thumb = bone('RightHandThumb1');
@@ -187,6 +190,14 @@ export async function makeLiuCharacter(opts = {}) {
       play(idleName(), { rate: ud.walking ? ud.walkRate : 1 });
     }
     evaluate(dt);
+    if (mouthMesh) {
+      // 像說話的節奏：兩個不同頻率疊加，偶爾停頓；文字打完便閉口
+      const talking = ud.name && E.speaker === ud.name;
+      const syl = Math.max(0, Math.sin(elapsed * 11) * 0.65 + Math.sin(elapsed * 17.3 + 1) * 0.35);
+      const want = talking ? 0.25 + 0.75 * syl : 0;
+      mouth += (want - mouth) * Math.min(1, dt * 18);
+      mouthMesh.morphTargetInfluences[mouthIdx] = mouth;
+    }
     if (upper.rotation.z) rotateChar(chest, Z, upper.rotation.z);
     placeHeld();
     ud.extraUpdate?.(dt);

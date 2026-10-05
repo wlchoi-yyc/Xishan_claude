@@ -79,6 +79,21 @@ newattrs = {
     'JOINTS_0': add_acc(newJ.astype(np.uint8), 5121, 'VEC4', 34962),
     'WEIGHTS_0': add_acc(newW.astype(np.float32), 5126, 'VEC4', 34962),
 }
+# ---------------- 口部張合（形變目標 MouthOpen）----------------
+# 原模型沒有口部骨骼或表情：唇線約在 y=0.8425、口寬約 ±0.015（由正面放大圖量得）。
+# 下唇、下巴連鬍子一起向下（及稍向後）移，上唇略向上；只影響臉的前方，頸部不動。
+def sst(a, b, v):
+    t = np.clip((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t)
+LIP = 0.8425
+wx = 1 - sst(0.012, 0.034, np.abs(x))                 # 口部附近最大，向兩頰淡出
+wz = sst(0.018, 0.034, z)                             # 只動臉的前方
+w_low = (1 - sst(LIP - 0.0012, LIP + 0.0006, y)) * sst(0.76, 0.79, y)   # 唇線以下到鬍子尾
+w_up = sst(LIP - 0.0004, LIP + 0.0012, y) * (1 - sst(LIP + 0.003, LIP + 0.007, y))   # 上唇一小條
+D = np.zeros_like(P)
+D[:, 1] = (-0.0055 * w_low + 0.0009 * w_up) * wx * wz
+D[:, 2] = -0.0012 * w_low * wx * wz
+mi = np.where(np.abs(D).max(1) > 1e-6)[0].astype(np.uint32)
+print('mouth morph verts', len(mi))
 ind = g.acc(prim['indices']).reshape(-1)
 indices = add_acc(ind.astype(np.uint16 if ind.max() < 65535 else np.uint32), 5123 if ind.max() < 65535 else 5125, 'SCALAR', 34963)
 ibm = add_acc(g.acc(skin['inverseBindMatrices']).astype(np.float32), 5126, 'MAT4')
@@ -91,8 +106,32 @@ def jpg(im, size, q):
     b = io.BytesIO(); im.resize((size, size), Image.LANCZOS).save(b, 'JPEG', quality=q, optimize=True, progressive=False); return b.getvalue()
 mat = j['materials'][0]
 nrm_src = mat['normalTexture']['index']; col_src = mat['pbrMetallicRoughness']['baseColorTexture']['index']
+# 在顏色貼圖上沿唇線畫一條深色細線：閉口時是自然的唇縫，說話時被拉闊成口部的陰影
+from PIL import ImageDraw
+UV = g.acc(A['TEXCOORD_0'])
+col_img = img(j['textures'][col_src]['source'])
+dr = ImageDraw.Draw(col_img); TW, TH = col_img.size
+tri = ind.reshape(-1, 3); nseg = 0
+for t in tri:
+    py = P[t, 1]
+    if not (py.min() < LIP < py.max()): continue
+    if np.abs(P[t, 0]).max() > 0.016 or P[t, 2].min() < 0.035: continue
+    pts = []
+    for a_, b_ in ((0, 1), (1, 2), (2, 0)):
+        ya, yb = py[a_], py[b_]
+        if (ya - LIP) * (yb - LIP) < 0:
+            k = (LIP - ya) / (yb - ya); uv = UV[t[a_]] + k * (UV[t[b_]] - UV[t[a_]])
+            # 唇角較淡較細
+            xm = abs(P[t[a_], 0] + k * (P[t[b_], 0] - P[t[a_], 0]))
+            pts.append((uv[0] * TW, uv[1] * TH, xm))
+    if len(pts) == 2:
+        xm = (pts[0][2] + pts[1][2]) / 2; f = 1 - min(1, xm / 0.016)
+        c = tuple(int(v) for v in (70 + 60 * (1 - f), 30 + 40 * (1 - f), 30 + 40 * (1 - f)))
+        dr.line([pts[0][:2], pts[1][:2]], fill=c, width=max(2, int(6 * f)))
+        nseg += 1
+print('lip seam segments painted', nseg)
 images = [
-    {'mimeType': 'image/jpeg', 'bufferView': add_view(jpg(img(j['textures'][col_src]['source']), 2048, 84))},
+    {'mimeType': 'image/jpeg', 'bufferView': add_view(jpg(col_img, 2048, 84))},
     {'mimeType': 'image/jpeg', 'bufferView': add_view(jpg(img(j['textures'][nrm_src]['source']), 1024, 90))},
 ]
 material = {'name': 'Liu_Robe', 'doubleSided': True,
@@ -141,10 +180,18 @@ for name, tracks in clips.items(): add_clip(name, tracks)
 nodes = j['nodes']
 mesh_node = next(i for i, n in enumerate(nodes) if 'mesh' in n)
 nodes[mesh_node]['name'] = 'Liu_Body'
+# 稀疏形變：只儲存有位移的頂點
+mor_idx = add_view(mi.tobytes()); mor_val = add_view(D[mi].astype(np.float32).tobytes())
+D_used = D[mi]
+accs.append({'componentType': 5126, 'count': len(P), 'type': 'VEC3',
+             'min': np.minimum(D_used.min(0), 0).astype(float).tolist(), 'max': np.maximum(D_used.max(0), 0).astype(float).tolist(),
+             'sparse': {'count': len(mi), 'indices': {'bufferView': mor_idx, 'componentType': 5125}, 'values': {'bufferView': mor_val}}})
+morph_acc = len(accs) - 1
 out = {
     'asset': {'version': '2.0', 'generator': 'Tripo + xishan build.py'},
     'scene': 0, 'scenes': j['scenes'], 'nodes': nodes,
-    'meshes': [{'name': 'Liu_Body', 'primitives': [{'attributes': newattrs, 'indices': indices, 'material': 0}]}],
+    'meshes': [{'name': 'Liu_Body', 'weights': [0], 'extras': {'targetNames': ['MouthOpen']},
+                'primitives': [{'attributes': newattrs, 'indices': indices, 'material': 0, 'targets': [{'POSITION': morph_acc}]}]}],
     'skins': [{'joints': skin['joints'], 'inverseBindMatrices': ibm}],
     'materials': [material], 'textures': [{'sampler': 0, 'source': 0}, {'sampler': 0, 'source': 1}],
     'samplers': [{'magFilter': 9729, 'minFilter': 9987, 'wrapS': 10497, 'wrapT': 10497}],
