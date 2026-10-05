@@ -104,7 +104,7 @@ export async function makeLiuCharacter(opts = {}) {
   // 姿勢轉換是否仍在播放（坐下、站起、躺下）。
   ud.busy = () => queue.length > 0 || (current && current.loop === THREE.LoopOnce && !current.paused && !drinking);
 
-  ud.holdCup = (obj, { lift = -.02 } = {}) => {
+  ud.holdCup = (obj, { lift = 0 } = {}) => {
     if (held) root.remove(held);
     held = obj; heldLift = lift; root.add(obj); obj.rotation.set(0, 0, 0);
     ud.customArms = true;
@@ -143,22 +143,36 @@ export async function makeLiuCharacter(opts = {}) {
     actor.updateMatrixWorld(true);
   }
 
-  // 握杯點：右手掌心前方；杯子保持直立，飲盡時杯口傾向嘴邊。
-  const pHand = new THREE.Vector3(), pMid = new THREE.Vector3(), pThumb = new THREE.Vector3(), tmp = new THREE.Vector3();
-  const cupQ = new THREE.Quaternion(), rootQ = new THREE.Quaternion();
+  // 托杯：杯子放在右手掌心上，跟隨手掌方向；與 tools/liu-model/anims.py 的 CUP_N 一致。
+  const pHand = new THREE.Vector3(), pMid = new THREE.Vector3(), tmp = new THREE.Vector3();
+  const hq = new THREE.Quaternion(), rootQ = new THREE.Quaternion(), basis = new THREE.Matrix4();
+  const fW = new THREE.Vector3(), nW = new THREE.Vector3(), uW = new THREE.Vector3();
+  // 靜止姿勢下計算右手本地的手指方向、掌心朝向（朝身體中線）和拇指方向
+  actor.updateMatrixWorld(true);
+  const fLoc = new THREE.Vector3(), nLoc = new THREE.Vector3(), uLoc = new THREE.Vector3();
+  {
+    hand.getWorldPosition(pHand); middle.getWorldPosition(pMid);
+    hand.getWorldQuaternion(hq); actor.getWorldQuaternion(rootQ);
+    const inv = hq.clone().invert();
+    fLoc.copy(pMid).sub(pHand).normalize().applyQuaternion(inv);
+    nLoc.set(1, 0, 0).applyQuaternion(rootQ).applyQuaternion(inv);
+    nLoc.addScaledVector(fLoc, -nLoc.dot(fLoc)).normalize();
+    uLoc.crossVectors(fLoc, nLoc).normalize();
+  }
+  const CUP_N = 0.012 * SCALE;
   function placeHeld() {
     if (!held) return;
-    hand.getWorldPosition(pHand); middle.getWorldPosition(pMid); thumb.getWorldPosition(pThumb);
-    tmp.copy(pHand).lerp(pMid, .8);
-    pThumb.sub(pHand); pMid.sub(pHand).normalize();
-    pThumb.addScaledVector(pMid, -pThumb.dot(pMid)).normalize();
-    tmp.addScaledVector(pThumb, .035);
+    hand.getWorldPosition(pHand); middle.getWorldPosition(pMid); hand.getWorldQuaternion(hq);
+    fW.copy(fLoc).applyQuaternion(hq); nW.copy(nLoc).applyQuaternion(hq); uW.copy(uLoc).applyQuaternion(hq);
+    tmp.copy(pHand).lerp(pMid, .55).addScaledVector(nW, CUP_N + heldLift);
     root.worldToLocal(tmp);
-    held.position.copy(tmp); held.position.y += heldLift;
-    const tilt = drinking ? Math.max(0, ud.drinkK - 1) : 0;
+    held.position.copy(tmp);
+    // 杯子的 Y 軸 = 掌心朝向（托杯）；X 軸 = 手指方向
+    uW.crossVectors(fW, nW);
+    basis.makeBasis(fW, nW, uW);
+    held.quaternion.setFromRotationMatrix(basis);
     root.getWorldQuaternion(rootQ);
-    cupQ.setFromAxisAngle(X, -tilt * 1.05);
-    held.quaternion.copy(cupQ);
+    held.quaternion.premultiply(rootQ.invert());
   }
 
   ud.update = dt => {

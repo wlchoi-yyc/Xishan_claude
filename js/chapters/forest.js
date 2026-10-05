@@ -509,7 +509,7 @@ export async function chapter2() {
   // 喝酒
   // 右手握着小酒壺的頸部，舉到嘴邊仰頭而飲
   const cupPot = makeWinePot('#7a8a70'); cupPot.scale.setScalar(0.5);
-  liu.userData.holdCup(cupPot, { lift: -0.13, rim: 0.08 });
+  liu.userData.holdCup(cupPot, { lift: -0.17 });
   await tween(0.8, k => liu.userData.drinkPose(k));
   await tween(0.9, k => liu.userData.drinkPose(1 + k));
   ui.whisper('傾壺而醉', { hold: 2.6 });

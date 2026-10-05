@@ -653,7 +653,7 @@ export async function chapter9() {
   document.getElementById('vignette').style.opacity = '0';
 
   // 引觴滿酌
-  const liuCup = makeCup(); liu.userData.holdCup(liuCup, { lift: -0.025, rim: 0.03 });
+  const liuCup = makeCup(); liu.userData.holdCup(liuCup);
   scene.remove(cup);
   await tween(0.9, k => liu.userData.drinkPose(k));
   await tween(1.1, k => liu.userData.drinkPose(1 + k));

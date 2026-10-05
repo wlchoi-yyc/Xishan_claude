@@ -249,18 +249,49 @@ def talk_arm(rig, p, side='Right', lift=1.0, open_=1.0):
 def mouth(rig, p):
     o = rig.fk(p, ['Head']); hp, hq = o['Head']
     d = qmul(hq, qinv(rig.Wrot['Head']))
-    return hp + qrot(d, [0, 0.032, 0.085]), d
+    return hp + qrot(d, [0, 0.024, 0.063]), d   # 唇部位置（由臉部網格量得）
+
+CUP_N = 0.012   # 托杯：杯底在掌心上方的距離（模型單位；遊戲中 ×1.85），須與 js/liu-character.js 一致
+
+def hand_frame(rig, p):
+    """右手的手指方向 f、掌心朝向 n、拇指側向上 u（角色座標）及握點。"""
+    H = 'RightHand'; Wr = rig.Wrot[H]
+    f_loc = qrot(qinv(Wr), rig.dir(H, 'RightHandMiddle1'))
+    n_loc = qrot(qinv(Wr), [1, 0, 0])
+    n_loc = n_loc - f_loc * np.dot(n_loc, f_loc); n_loc /= np.linalg.norm(n_loc)
+    u_loc = np.cross(f_loc, n_loc)
+    o = rig.fk(p, [H, 'RightHandMiddle1'])
+    q = o[H][1]
+    palm = o[H][0] + (o['RightHandMiddle1'][0] - o[H][0]) * 0.55
+    return qrot(q, f_loc), qrot(q, n_loc), qrot(q, u_loc), palm
+
+def cup_bottom(rig, p):
+    f, n, u, palm = hand_frame(rig, p)
+    return palm + n * CUP_N, n      # 杯子的「上」= 掌心朝向
+
+def place_cup(rig, p, bottom, f_des, n_des):
+    """讓握在右手的酒杯杯底到達 bottom，手掌朝向 f_des／n_des。"""
+    wrist = np.array(bottom, float) - np.array([0, 0.01, 0.03])
+    for _ in range(5):
+        reach(p, 'Right', wrist, {0: 0, 2: 25, 3: 0})
+        orient_hand(p, 'Right', f_des, n_des)
+        b, _ = cup_bottom(rig, p)
+        wrist = wrist + (np.asarray(bottom) - b)
+    b, u = cup_bottom(rig, p)
+    print('  cup error', round(float(np.linalg.norm(b - bottom)), 4), 'up', np.round(u, 2))
+    curl(p, 'Right', 6)
+    return p
 
 def drink_keys(rig, base):
-    """0：手放膝上；1：酒杯到唇；2：仰頭飲盡。回傳三個姿勢。"""
+    """0：手放膝上；1：掌心托杯舉到唇前；2：手掌後傾，杯口貼唇、微微仰頭飲酒。"""
     up = base.copy(); up.r('Spine1', rx(-2))
-    m, d = mouth(rig, up)
-    print('drink up', reach(up, 'Right', m + np.array([-0.045, -0.115, 0.065]), {3: 10}))
-    up.set('RightHand', rx(-10), rz(-10)); curl(up, 'Right', 30)
-    tilt = up.copy(); tilt.r('Neck', rx(-16)); tilt.r('Head', rx(-16)); tilt.r('Spine2', rx(-5))
-    m2, d2 = mouth(rig, tilt)
-    print('drink tilt', reach(tilt, 'Right', m2 + np.array([-0.045, -0.095, 0.075]), {3: 10}))
-    tilt.set('RightHand', rx(-30), rz(-10)); curl(tilt, 'Right', 30)
+    m, _ = mouth(rig, up)
+    f1 = np.array([0.35, 0.0, 1.0]); n1 = np.array([0.0, 1.0, 0.0])
+    print('drink up'); place_cup(rig, up, m + np.array([0.0, -0.075, 0.075]), f1, n1)
+    tilt = up.copy(); tilt.r('Neck', rx(-8)); tilt.r('Head', rx(-10)); tilt.r('Spine2', rx(-3))
+    m2, _ = mouth(rig, tilt)
+    T = rx(-50)                       # 杯口向臉傾側 50°
+    print('drink tilt'); place_cup(rig, tilt, m2 + np.array([0.0, -0.016, 0.056]), qrot(T, f1), qrot(T, n1))
     return base, up, tilt
 
 def build_all(rig):
