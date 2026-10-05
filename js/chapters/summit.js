@@ -652,19 +652,9 @@ export async function chapter9() {
   canvas.style.filter = '';
   document.getElementById('vignette').style.opacity = '0';
 
-  // 引觴滿酌
-  const liuCup = makeCup(); liu.userData.holdCup(liuCup);
-  scene.remove(cup);
-  await tween(0.9, k => liu.userData.drinkPose(k));
-  await tween(1.1, k => liu.userData.drinkPose(1 + k));
-  const c2 = ui.caption('引觴滿酌，頹然就醉，不知日之入。', { gloss: '拿起酒杯斟滿，醉得東歪西倒，連太陽下山了也不知道。', hold: 6.5 });
-  await wait(2);
-  await tween(1.2, k => liu.userData.drinkPose(2 - k));
-  await c2;
-  await tween(0.8, k => liu.userData.drinkPose(1 - k));
-  liu.userData.releaseCup();
-  // 頹然就醉：身子微微搖晃，頭慢慢垂下
+  // 引觴滿酌：不做舉杯動作（模型手部難以準確握杯），酒杯留在身旁；以身子微微搖晃、頭慢慢垂下表現「頹然就醉」
   liu.userData.setIdle?.('DrunkSway');
+  await ui.caption('引觴滿酌，頹然就醉，不知日之入。', { gloss: '拿起酒杯斟滿，醉得東歪西倒，連太陽下山了也不知道。', hold: 6.5 });
   ui.journalAdd('活動', '引觴滿酌，頹然就醉，不知日之入。', '引觴滿酌，頹然就醉，不知日之入');
 
   // 第四階段：蒼然暮色，自遠而至
