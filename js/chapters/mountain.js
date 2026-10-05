@@ -243,7 +243,7 @@ export async function chapter5() {
     if (burned === world.thatch.length) world.grassWall.active = false;
     if (cut === world.bushes.length && burned === world.thatch.length) resolveAll();
   };
-  const targets = () => [...world.bushes.filter(b => b.userData.hp > 0), ...world.thatch.filter(t => t.userData.heat < 1)];
+  const targets = () => [...world.bushes.filter(b => b.userData.hp > 0), ...world.thatch.filter(t => !t.userData.done)];
   const kindOf = (o) => { while (o && !o.userData.kind) o = o.parent; return o; };
   // prefer：同一條射線上若有這類目標，優先選它（例如斧頭優先選灌木，不會被後面的茅草擋住）
   const hitTarget = (x, y, prefer = null) => {
@@ -329,9 +329,21 @@ export async function chapter5() {
   if (current) setTool(current);
   // 燃燒進度
   let crackleT = 0;
+  // 燒完一叢茅草（不論是拖動時還是按住時燒夠的，都要結算，避免卡在「燒夠了但未計算」）
+  const finishThatch = (t) => {
+    t.userData.done = true;
+    if (burning === t) burning = null;
+    t.material.color.setRGB(0.2, 0.18, 0.15);
+    const s0 = t.scale.y;
+    tween(1.5, kk => { t.scale.y = s0 * (1 - kk * 0.85); }).then(() => {
+      setTimeout(() => { if (t.userData.fire) { t.remove(t.userData.fire); } const sm = makeSmoke(); t.add(sm); }, 1200);
+    });
+    burned++; check();
+  };
   const burnUpdate = (dt) => {
     heldTorch.userData.fire.userData.animate(E.time);
-    if (!burning) return;
+    for (const t of world.thatch) if (t.userData.heat >= 1 && !t.userData.done) finishThatch(t);
+    if (!burning || burning.userData.done) return;
     const t = burning;
     t.userData.heat += dt * 0.9;
     crackleT -= dt;
@@ -342,15 +354,7 @@ export async function chapter5() {
     // 慢慢變黑
     const k = Math.min(1, t.userData.heat);
     t.material.color.setRGB(1 - k * 0.8, 1 - k * 0.82, 1 - k * 0.85);
-    if (t.userData.heat >= 1 && !t.userData.done) {
-      t.userData.done = true;
-      burning = null;
-      const s0 = t.scale.y;
-      tween(1.5, kk => { t.scale.y = s0 * (1 - kk * 0.85); }).then(() => {
-        setTimeout(() => { if (t.userData.fire) { t.remove(t.userData.fire); } const sm = makeSmoke(); t.add(sm); }, 1200);
-      });
-      burned++; check();
-    }
+    if (t.userData.heat >= 1 && !t.userData.done) finishThatch(t);
   };
   E.onUpdate.push(burnUpdate);
   await allDone;
