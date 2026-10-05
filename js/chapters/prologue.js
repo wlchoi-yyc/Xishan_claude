@@ -1,6 +1,7 @@
 // 序章：柳宗元去了哪裏？（永州居所）
 import { E, THREE, ui, audio, enter, watch } from './common.js';
 import { addInteractable, removeInteractable, freeze, unfreeze, wait, lookAt, moveTo, turnTo, tween } from '../engine.js';
+import { makeServantCharacter } from '../servant-character.js';
 import { makePerson, makeWinePot, makeStrawHat, makeHouse, textCanvas, lam, makeRock, fbm, rng } from '../world.js';
 
 // ---------------- 室內材質（程式繪製，不需圖檔） ----------------
@@ -62,6 +63,7 @@ function texMat(color, tex, rx = 1, ry = 1, rot = 0) {
   return new THREE.MeshLambertMaterial({ color, map: t });
 }
 
+let servantModel = null;
 function buildRoom() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#6f747a');
@@ -178,7 +180,8 @@ function buildRoom() {
   scene.add(shelf);
 
   // 僕人（老僕）
-  const servant = makePerson({ preset: 'oldServant', name: '老僕' });
+  // 立體模型在進入場景前已載入（見 prologue()）；載不到時用程式繪製的人物
+  const servant = servantModel || makePerson({ preset: 'oldServant', name: '老僕' });
   servant.position.set(2.6, 0, 1.9); servant.rotation.y = -2.4;
   scene.add(servant);
   E.persons.add(servant);
@@ -225,6 +228,8 @@ function buildRoom() {
 export async function prologue() {
   audio.ambience({ wind: 0.25, water: 0, birds: 0.15, crickets: 0 });
   audio.music('yongzhou');
+  // 老僕的立體模型（標題畫面時已在背景載入），最多等幾秒
+  servantModel = await makeServantCharacter({ name: '老僕' }, 6000);
   const world = await enter(buildRoom, { x: 1.8, z: 2.4, yaw: 0.55, pitch: -0.12 });
   const R = world.refs;
   ui.showHUD(true);
@@ -333,6 +338,7 @@ export async function prologue() {
       await ui.say('老僕', '你到城外山林找找吧。先生走過的地方，總會留下些痕跡。');
       await ui.choose([{ label: '好，我去找他。' }], { name: '你' });
       ui.hideDialog();
+      R.servant.userData.gesture?.('Bow');   // 老僕微微欠身相送（雙手不動）
       audio.chime();
       ui.objective('尋找柳宗元：循着他留下的痕跡，找出他的去向', '從東邊的門離開柳宅。');
       ui.toast('新任務：尋找柳宗元');

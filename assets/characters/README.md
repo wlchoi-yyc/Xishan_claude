@@ -44,3 +44,20 @@
 python3 tools/liu-model/build.py 原始Tripo模型.glb assets/characters/liu-zongyuan.glb
 ```
 需要 Python 3、numpy、Pillow。動作定義在 `tools/liu-model/anims.py`（以角色座標描述每節骨骼的轉動，手部位置以簡單 IK 搜尋）。`tools/liu-model/view.html?clip=Drink&t=0,1.25,2.5&views=front,side` 可經網頁伺服器預覽任何動作。
+
+# 老僕（old-servant.glb）
+
+序章的老僕。原始 Tripo 模型沒有骨架，由 `tools/servant-model/build_servant.py` 自動綁骨：
+
+- 按模型比例放置 Mixamo 式骨架（骨骼名稱 `mixamorig:*`，與柳宗元共用同一套動作工具）。
+- 蒙皮權重以頂點到骨段的距離計算，再按部位限制（手臂、頭、褲管、衣襬、軀幹），衣襬用與柳宗元長袍相同的髖↔腿平滑分配，最後沿網格平滑三次。
+- 口部：形變目標 `MouthOpen`（下唇、下巴、鬍子下移），並在貼圖上畫出唇縫；說話（`E.speaker === '老僕'`）時張合。
+- 去掉原檔的高光擴充（會令衣服出現白斑），貼圖壓縮為 2048／1024 JPEG。
+
+動作：`Idle`（微駝、輕微呼吸）、`Talk`（呼吸加輕微點頭）、`Bow`（只彎上背和頸，雙臂反向補償，手不動）。原模型雙手垂在身旁、與衣服相連，因此所有動作都不移動手臂，避免撕裂衣服。序章結束時老僕欠身相送。
+
+遊戲中由 `js/servant-character.js` 載入（標題畫面時預先載入，載不到便用程式繪製的人物）。貼圖分塊很碎，遠看時 mipmap 會把深色衣料混進臉上，所以老僕的貼圖不用 mipmap。
+
+```
+python3 tools/servant-model/build_servant.py 原始Tripo模型.glb assets/characters/old-servant.glb
+```
