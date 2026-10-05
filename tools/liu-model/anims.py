@@ -301,7 +301,8 @@ def build_all(rig):
     C['SitDown'] = sample(rig, sit_keys)
     C['StandUp'] = sample(rig, [(1.8 - t, p) for t, p in reversed(sit_keys)])
 
-    C['SeatedIdle'] = sample(rig, [(0, Sit), (4, Sit)], fx=breathe(1.2, 4, 1.2))
+    # 靜坐：身體不動，只有輕微呼吸
+    C['SeatedIdle'] = sample(rig, [(0, Sit), (4.5, Sit)], fx=breathe(0.8, 4.5, 0))
     def seated_gesture(lift, out, open_):
         q = Sit.copy(); o = rig.fk(q, ['RightHand']); w = o['RightHand'][0]
         reach(q, 'Right', w + np.array([-out, lift, 0.07]), {0: 0, 1: 10, 3: 0})
@@ -310,7 +311,8 @@ def build_all(rig):
         return q
     st1 = seated_gesture(0.10, 0.02, 0.6); st1.r('Head', rx(4))
     st2 = seated_gesture(0.13, 0.05, 0.9); st2.r('Head', rx(-3), ry(-5))
-    C['SeatedTalk'] = sample(rig, [(0, Sit), (0.7, st1), (1.6, st2), (2.5, st1), (4.0, Sit)], fx=breathe(1, 4, 1))
+    # 坐着說話：雙手不動，只有呼吸和極輕微的點頭
+    C['SeatedTalk'] = sample(rig, [(0, Sit), (4.0, Sit)], fx=breathe(0.8, 4, 1.2))
 
     # 舉杯飲酒：k 由劇情控制（0→2）
     d0, d1, d2 = drink_keys(rig, Sit)
