@@ -6,6 +6,7 @@ import { THREE, E } from './engine.js';
 import { GLTFLoader } from '../lib/addons/loaders/GLTFLoader.js';
 import { clone } from '../lib/addons/utils/SkeletonUtils.js';
 import { makePerson } from './people.js';
+import { makeRock } from './world.js';
 
 const MODEL_URL = 'assets/characters/liu-zongyuan.glb';
 // 模型原高 0.98，放大到約 1.81 米，與遊戲其他人物一致。
@@ -44,6 +45,11 @@ export async function makeLiuCharacter(opts = {}) {
   const head = bone('Head'), neck = bone('Neck'), spine = bone('Spine'), chest = bone('Spine2');
   const hand = bone('RightHand'), middle = bone('RightHandMiddle1'), thumb = bone('RightHandThumb1');
 
+  // 坐着時臀下的一塊扁石（坐姿是小腿垂直放下，需要有座位）。座面高約 0.43 米，與 tools/liu-model 的坐姿一致。
+  const seat = makeRock(0.32, '#8b877b', 77);
+  seat.scale.set(1.15, 0.8, 1.0); seat.position.set(0, 0.15, -0.07);
+  seat.castShadow = false; seat.receiveShadow = true; seat.visible = false;
+  root.add(seat);
   const mixer = new THREE.AnimationMixer(actor);
   const actions = Object.fromEntries(gltf.animations.map(c => [c.name, mixer.clipAction(c)]));
   const ONCE = new Set(['SitDown', 'StandUp', 'LieDown', 'Invite', 'PointFar', 'Bow', 'Drink']);
@@ -86,7 +92,7 @@ export async function makeLiuCharacter(opts = {}) {
 
   ud.setPose = (pose, { instant = false } = {}) => {
     const previous = ud.pose;
-    ud.pose = pose; queue = []; drinking = false; gesture?.done(); gesture = null;
+    ud.pose = pose; seat.visible = pose === 'sit'; queue = []; drinking = false; gesture?.done(); gesture = null;
     if (pose !== 'sit') ud.idle = ud.idle === 'DrunkSway' ? null : ud.idle;
     // 首次放進場景前、或劇情要求（instant）時直接就位，不播放坐下／站起等過渡動作。
     if (instant || !root.parent || previous === pose) { play(idleName(), { fade: 0 }); evaluate(0); return; }

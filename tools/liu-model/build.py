@@ -162,6 +162,11 @@ rig.rest_t = {n: np.array(j['nodes'][i].get('translation', [0, 0, 0]), float) fo
 # 以待機第一格作為站姿基準
 idle0 = {n: v[1][0] for (n, p), v in idle_tracks.items() if p == 'rotation'}
 rig.set_idle_base(idle0)
+# 蒙皮資料：讓動作程式可以計算擺好姿勢後衣服和手的實際位置（避免手掌陷進衣服）
+ibm_m = g.acc(skin['inverseBindMatrices']).reshape(-1, 4, 4).transpose(0, 2, 1)
+dom_new = newJ[np.arange(len(newJ)), newW.argmax(1)]
+hand_of = {s: np.where(np.isin(dom_new, [ji[n] for n in jnames if n.startswith(s + 'Hand')]))[0] for s in ('Left', 'Right')}
+rig.skin = dict(P=P.astype(np.float64), J=newJ, W=newW, ibm=ibm_m, joints=jnames, robe=np.where(robe)[0], hand=hand_of)
 clips = anims.build_all(rig)
 
 animations = []

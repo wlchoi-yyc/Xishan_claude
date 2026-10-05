@@ -176,22 +176,81 @@ def orient_hand(p, side, f_des, n_des):
     return p
 
 def hands_on_knees(p, lift=0.045, along=0.62):
+    lifts = lift if isinstance(lift, (tuple, list)) else (lift, lift)
     """雙手分開，掌心向下輕放在兩膝上，手指自然微曲。"""
     rig = p.rig
     for side, sg in (('Left', 1), ('Right', -1)):
         o = rig.fk(p, [f'{side}UpLeg', f'{side}Leg'])
         hip, knee = o[f'{side}UpLeg'][0], o[f'{side}Leg'][0]
-        wrist = hip + (knee - hip) * along + np.array([-sg * 0.005, lift, 0])
+        wrist = hip + (knee - hip) * along + np.array([-sg * 0.005, lifts[0 if side == 'Left' else 1], 0])
         print('knee', side, reach(p, side, wrist, {0: 0, 1: 10, 3: 0}))
         d = knee - hip; d[1] = 0; d /= np.linalg.norm(d)
-        orient_hand(p, side, d + np.array([0, -0.35, 0]), [0, -1, 0])
+        orient_hand(p, side, d + np.array([0, -0.12, 0]), [0, -1, 0])   # 手掌近乎平放在腿上
         curl(p, side, 14)
     return p
 
+
+# ---------------------------------------------------------------- 蒙皮計算（量度手與衣服的距離）
+def qmat(q):
+    x, y, z, w = q
+    return np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                     [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                     [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
+
+def skin_points(rig, p, idx):
+    sk = rig.skin; o = rig.fk(p)
+    S = {}
+    out = np.zeros((len(idx), 3))
+    for k in range(4):
+        js = sk['J'][idx, k]; ws = sk['W'][idx, k]
+        for jn in np.unique(js):
+            if jn not in S:
+                name = sk['joints'][jn]
+                pos, q = o[name] if name in o else (rig.Wpos[name], rig.Wrot[name])
+                M = np.eye(4); M[:3, :3] = qmat(q); M[:3, 3] = pos
+                S[jn] = M @ sk['ibm'][jn]
+            m = js == jn
+            v = np.c_[sk['P'][idx[m]], np.ones(m.sum())]
+            out[m] += ws[m, None] * (v @ S[jn].T)[:, :3]
+    return out
+
+def hand_clearance_down(rig, p, side):
+    """手掌（手的頂點）比其下方 2.5 厘米範圍內的衣服高出多少（負數＝陷進去）。"""
+    H = skin_points(rig, p, rig.skin['hand'][side]); R = skin_points(rig, p, rig.skin['robe'])
+    worst = 1.0
+    for h in H[::3]:
+        # 手正下方及正上方（5 厘米內）的衣面：若有衣服蓋在手上，代表手陷進衣服裏
+        near = (np.hypot(R[:, 0] - h[0], R[:, 2] - h[2]) < 0.014) & (R[:, 1] < h[1] + 0.05)
+        if near.any(): worst = min(worst, h[1] - R[near, 1].max())
+    return worst
+
+def hand_clearance_side(rig, p, side):
+    """站立時手與長袍側面的距離（負數＝手陷進衣服裏）。"""
+    H = skin_points(rig, p, rig.skin['hand'][side]); R = skin_points(rig, p, rig.skin['robe'])
+    c = rig.hips_t + p.t
+    worst = 1.0
+    ra = np.arctan2(R[:, 0] - c[0], R[:, 2] - c[2]); rr = np.hypot(R[:, 0] - c[0], R[:, 2] - c[2])
+    for h in H[::3]:
+        a = np.arctan2(h[0] - c[0], h[2] - c[2]); hr = np.hypot(h[0] - c[0], h[2] - c[2])
+        m = (np.abs(R[:, 1] - h[1]) < 0.012) & (np.abs(np.angle(np.exp(1j * (ra - a)))) < 0.12)
+        if m.any(): worst = min(worst, hr - rr[m].max())
+    return worst
+
+_STAND = {}
 def stand(rig):
+    if 'p' in _STAND: return _STAND['p'].copy()
     p = Pose(rig)
     curl(p, 'Left', 12); curl(p, 'Right', 12)
-    return p
+    # 雙手自然垂下時不要陷進長袍：逐步把手臂稍為張開，直至手離衣服約 0.8 厘米
+    if getattr(rig, 'skin', None):
+        for side, sg in (('Left', 1), ('Right', -1)):
+            for _ in range(15):
+                c = hand_clearance_side(rig, p, side)
+                if c > 0.0045: break
+                p.r(f'{side}Arm', rz(sg * 1.5))
+            print('stand hand clearance', side, round(hand_clearance_side(rig, p, side), 4))
+    _STAND['p'] = p
+    return p.copy()
 
 def hands_behind(rig, p=None):
     """負手：雙手在背後相握，文人散步、遠眺的姿態。"""
@@ -202,23 +261,32 @@ def hands_behind(rig, p=None):
         p.set(f'{side}Hand', rz(-sg * 15))
     return p
 
+SEAT = {}
 def seated(rig):
-    """跪坐（正坐）：雙膝着地、臀部坐在腳跟上，雙腿併攏；長袍自然蓋住膝頭。雙手分開放在大腿上。"""
+    """坐在石上：大腿向前、小腿垂直放下，雙腿併攏；雙手分開放在大腿上，手掌在衣服之上。"""
     p = stand(rig).copy()
-    p.set('Hips', rx(2))
-    p.r('Spine', rx(2)); p.r('Spine1', rx(1))
+    p.set('Hips', rx(0))
+    p.r('Spine', rx(3))
     for side, sg in (('Left', 1), ('Right', -1)):
-        p.set(f'{side}UpLeg', rx(-80), ry(sg * 6))
-        p.set(f'{side}Leg', hinge(rig, f'{side}Leg', -165))
-        p.set(f'{side}Foot', rx(-60))
-    # 讓膝頭剛好着地：按正向運算的最低點調整臀部高度
-    o = rig.fk(p, ['LeftLeg', 'RightLeg', 'LeftFoot', 'RightFoot'])
-    low = min(o['LeftLeg'][0][1], o['RightLeg'][0][1])
-    p.move(0, 0.03 - low, 0)
-    # 頸和頭稍為抬起，平視前方
-    p.r('Neck', rx(-3)); p.r('Head', rx(-3))
-    hands_on_knees(p, lift=0.075, along=0.55)   # 長袍蓋在大腿上較厚，手要放在袍面上
-    return p
+        p.set(f'{side}UpLeg', rx(-86), ry(sg * 5))
+        p.set(f'{side}Leg', hinge(rig, f'{side}Leg', -88))
+        p.set(f'{side}Foot', rx(2))
+    # 腳掌剛好着地
+    o = rig.fk(p, ['LeftToeBase', 'RightToeBase', 'LeftFoot', 'RightFoot'])
+    low = min(o[n][0][1] for n in ('LeftToeBase', 'RightToeBase', 'LeftFoot', 'RightFoot'))
+    p.move(0, 0.012 - low, 0)
+    SEAT['hips'] = float((rig.hips_t + p.t)[1])
+    p.r('Neck', rx(-2)); p.r('Head', rx(-2))
+    # 手放在大腿上：左右各自逐步提高，直至手掌比下方衣服（包括垂在腿上的腰帶）高約 0.6 厘米，且沒有衣服蓋住手
+    lifts = [0.03, 0.03]
+    for _ in range(16):
+        q = p.copy(); hands_on_knees(q, lift=tuple(lifts), along=0.6)
+        cs = [hand_clearance_down(rig, q, 'Left'), hand_clearance_down(rig, q, 'Right')]
+        if min(cs) > 0.0035: break
+        for k in range(2):
+            if cs[k] <= 0.0035: lifts[k] += max(0.004, 0.0035 - cs[k])
+    print('seated hand lift', np.round(lifts, 3), 'clearance', np.round(cs, 4), 'hips y', round(SEAT['hips'], 3))
+    return q
 
 def lying(rig):
     """醉臥：仰臥，右臂枕在頭下，左手放在胸前，膝微屈。"""
