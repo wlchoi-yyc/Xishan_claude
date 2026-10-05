@@ -516,11 +516,11 @@ export async function chapter2() {
   ui.whisper('披草而坐', { hold: 2.4 });
   await wait(2.5);
   // 喝酒：不做舉壺動作，酒壺放在柳宗元身旁，人物靜坐
-  const pot = makeWinePot('#7a8a70'); pot.scale.setScalar(0.5);
-  pot.position.set(seats[0].x + 0.45, H(seats[0].x + 0.45, seats[0].z + 0.35), seats[0].z + 0.35);
-  pot.traverse(o => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0; } });
-  scene.add(pot); extras.push(pot);
-  await tween(0.8, k => pot.traverse(o => { if (o.material) o.material.opacity = 0.75 * k; }));
+  const ghostPot = makeWinePot('#7a8a70'); ghostPot.scale.setScalar(0.5);
+  ghostPot.position.set(seats[0].x + 0.45, H(seats[0].x + 0.45, seats[0].z + 0.35), seats[0].z + 0.35);
+  ghostPot.traverse(o => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0; } });
+  scene.add(ghostPot); extras.push(ghostPot);
+  await tween(0.8, k => ghostPot.traverse(o => { if (o.material) o.material.opacity = 0.75 * k; }));
   ui.whisper('傾壺而醉', { hold: 2.6 });
   await wait(2.8);
   // 醉臥
@@ -547,7 +547,7 @@ export async function chapter2() {
     group.forEach((p, i) => { const x = lerp(seats[i].x, ends[i].x, k), z = lerp(seats[i].z, ends[i].z, k); p.position.set(x, H(x, z), z); });
     if (k > 0.6) setOpacity(0.75 * (1 - (k - 0.6) / 0.4));
   }, t => t);
-  group.forEach(p => { scene.remove(p); E.persons.delete(p); }); scene.remove(pot);
+  group.forEach(p => { scene.remove(p); E.persons.delete(p); }); scene.remove(ghostPot);
   await wait(0.6);
 
   await ui.caption('以為凡是州之山水有異態者，皆我有也。', { gloss: '他以為永州凡是有奇特姿態的山水，都已經被自己遊遍、盡歸所有了。', hold: 7 });
