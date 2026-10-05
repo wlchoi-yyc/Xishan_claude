@@ -374,12 +374,10 @@ def build_all(rig):
     pf2 = pf1.copy(); pf2.r('RightArm', ry(-30)); pf2.r('Spine2', ry(-10)); pf2.r('Head', ry(-12))
     C['PointFar'] = sample(rig, [(0, Sit), (0.9, pf1), (2.4, pf2), (3.4, pf2), (4.4, Sit)])
 
-    # 頹然就醉：身體慢慢搖晃、頭垂下
-    def sway(p, t):
-        w = 2 * np.pi * t / 5
-        p.r('Spine', rz(5 * np.sin(w)), rx(5 + 3 * np.cos(w))); p.r('Spine2', rz(3 * np.sin(w + .6)))
-        p.r('Neck', rx(10 + 4 * np.sin(w * 2))); p.r('Head', rz(-6 * np.sin(w + 1)), rx(6))
-    C['DrunkSway'] = sample(rig, [(0, Sit), (5, Sit)], fx=sway)
+    # 頹然就醉：身體不搖晃，只在約五秒內緩緩垂下頭，之後保持低頭、輕微呼吸
+    # （片段長 60 秒，足夠覆蓋整段暮色；劇情結束時以 setIdle(null) 回到靜坐）
+    droop = Sit.copy(); droop.r('Spine1', rx(3)); droop.r('Neck', rx(14)); droop.r('Head', rx(12))
+    C['DrunkSway'] = sample(rig, [(0, Sit), (5.5, droop), (60, droop)], fx=breathe(0.7, 5, 0), fps=10)
 
     # 躬身致意：雙手自然垂在身旁，只彎腰點頭（不拱手，避免雙手交疊變形）
     bow = S.copy(); bow.r('Spine', rx(12)); bow.r('Spine1', rx(8)); bow.r('Head', rx(10)); bow.move(0, -0.004, -0.01)

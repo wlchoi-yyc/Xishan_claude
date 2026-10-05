@@ -100,7 +100,12 @@ export async function makeLiuCharacter(opts = {}) {
     play(name, { fade: .35 });
   });
   // 指定待機：'GazeIdle'（負手遠眺）、'DrunkSway'（頹然就醉）或 null。
-  ud.setIdle = name => { ud.idle = name; };
+  ud.setIdle = name => {
+    const wasDrunk = ud.idle === 'DrunkSway';
+    ud.idle = name;
+    // 由低頭醉態回復時慢慢抬頭，不要一下子彈回
+    if (wasDrunk && name !== 'DrunkSway' && !drinking && !gesture && !queue.length) play(idleName(), { fade: 1.6 });
+  };
   // 姿勢轉換是否仍在播放（坐下、站起、躺下）。
   ud.busy = () => queue.length > 0 || (current && current.loop === THREE.LoopOnce && !current.paused && !drinking);
 
