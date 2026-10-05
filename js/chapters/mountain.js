@@ -568,10 +568,15 @@ export async function chapter6() {
     const L = LEDGES[s], N = LEDGES[s + 1];
     ui.objective(`攀援而登：選擇可靠的落腳點（${s + 1}／${STAGES.length}）`, '想想哪一樣承得住人的重量。');
     const types = [...STAGES[s]].sort(() => Math.random() - 0.5);
+    // iPad 等較方的螢幕水平視野較窄：把三個落腳點靠攏一些，免得兩旁的跑出畫面
+    const spread = 1.8 * THREE.MathUtils.clamp(E.camera.aspect / 1.78, 0.62, 1);
     const holds = types.map((t, i) => {
-      const z = (i - 1) * 1.8;
+      const z = (i - 1) * spread;
       const y = L.y + 2.4 + Math.abs(i - 1) * 0.3;
       const h = makeHold(t, 900 + s * 10 + i);
+      // 樹根、枯枝的形狀偏離原點：把它們移回中心，光圈才會落在物件正中
+      const c = new THREE.Box3().setFromObject(h).getCenter(new THREE.Vector3());
+      h.children.forEach(ch => ch.position.sub(c));
       h.position.set(cliffX(y) + 0.75, y, L.z + z * 0.8);
       h.rotation.y = Math.PI / 2;
       scene.add(h);
@@ -585,7 +590,7 @@ export async function chapter6() {
       holds.forEach((h, i) => {
         const info = HOLD_INFO[types[i]];
         const it = addInteractable({
-          object: h, label: info.label, walk: false, range: 99,
+          object: h, label: info.label, walk: false, range: 99, markerOffset: 0.05,   // 光圈貼在落腳點上，不會浮到別的東西上
           onClick: async () => {
             setControls({ interact: false });
             if (info.ok) {
@@ -643,10 +648,12 @@ export async function chapter6() {
         E.onUpdate.push(anim); obj.userData.stop = () => { const k = E.onUpdate.indexOf(anim); if (k >= 0) E.onUpdate.splice(k, 1); };
       } else obj.position.set(N.x + 0.3, N.y + 0.02, N.z + 0.7);
       scene.add(obj);
+      // 這時要找的是痕跡，不是落腳點：更新目標，免得學生以為光圈是另一個落腳點
+      ui.objective(`路上有痕跡：${c.label}`, '點擊發光的地方看看。');
       if (c.snag) await lookAt(obj.position.clone().add(new THREE.Vector3(0.45, -0.05, 0)), 0.9);
       else await lookAt(obj.position.clone().add(new THREE.Vector3(0, c.label === '竹杖' ? 0.6 : 0, 0)), 0.9);
       setControls({ look: true, interact: true });
-      await clue(obj, c.label, async () => { await ui.say('', c.text); ui.hideDialog(); }, { walk: false, range: 99 });
+      await clue(obj, c.label, async () => { await ui.say('', c.text); ui.hideDialog(); }, { walk: false, range: 99, markerOffset: 0.1 });
       if (obj.userData.stop) obj.userData.stop();
       setControls({ move: false });
     }
