@@ -263,30 +263,34 @@ def hands_behind(rig, p=None):
 
 SEAT = {}
 def seated(rig):
-    """坐在石上：大腿向前、小腿垂直放下，雙腿併攏；雙手分開放在大腿上，手掌在衣服之上。"""
+    """坐在石上：大腿稍向下斜、小腿垂直放下，雙腿併攏；雙手自然垂在身旁。"""
     p = stand(rig).copy()
-    p.set('Hips', rx(0))
-    p.r('Spine', rx(3))
+    p.r('Spine', rx(2))
     for side, sg in (('Left', 1), ('Right', -1)):
-        p.set(f'{side}UpLeg', rx(-86), ry(sg * 5))
-        p.set(f'{side}Leg', hinge(rig, f'{side}Leg', -88))
-        p.set(f'{side}Foot', rx(2))
+        p.set(f'{side}UpLeg', rx(-76), ry(sg * 2))
+        p.set(f'{side}Leg', hinge(rig, f'{side}Leg', -76))
+        p.set(f'{side}Foot', rx(0))
     # 腳掌剛好着地
     o = rig.fk(p, ['LeftToeBase', 'RightToeBase', 'LeftFoot', 'RightFoot'])
     low = min(o[n][0][1] for n in ('LeftToeBase', 'RightToeBase', 'LeftFoot', 'RightFoot'))
     p.move(0, 0.012 - low, 0)
-    SEAT['hips'] = float((rig.hips_t + p.t)[1])
     p.r('Neck', rx(-2)); p.r('Head', rx(-2))
-    # 手放在大腿上：左右各自逐步提高，直至手掌比下方衣服（包括垂在腿上的腰帶）高約 0.6 厘米，且沒有衣服蓋住手
-    lifts = [0.03, 0.03]
-    for _ in range(16):
-        q = p.copy(); hands_on_knees(q, lift=tuple(lifts), along=0.6)
-        cs = [hand_clearance_down(rig, q, 'Left'), hand_clearance_down(rig, q, 'Right')]
-        if min(cs) > 0.0035: break
-        for k in range(2):
-            if cs[k] <= 0.0035: lifts[k] += max(0.004, 0.0035 - cs[k])
-    print('seated hand lift', np.round(lifts, 3), 'clearance', np.round(cs, 4), 'hips y', round(SEAT['hips'], 3))
-    return q
+    # 雙手自然垂下（上臂略向前、手肘微曲）；若陷進衣服，逐步把手臂稍為張開
+    for side, sg in (('Left', 1), ('Right', -1)):
+        p.r(f'{side}Arm', rz(-sg * 4), rx(-10)); p.r(f'{side}ForeArm', hinge(rig, f'{side}ForeArm', 12))
+    if getattr(rig, 'skin', None):
+        for side, sg in (('Left', 1), ('Right', -1)):
+            for _ in range(20):
+                if hand_clearance_side(rig, p, side) > 0.0045: break
+                p.r(f'{side}Arm', rz(sg * 1.5))
+        # 座位：臀下衣服的最低點（石面高度）與位置
+        hips = rig.hips_t + p.t
+        R = skin_points(rig, p, rig.skin['robe'])
+        m = (np.abs(R[:, 0] - hips[0]) < 0.11) & (R[:, 2] > hips[2] - 0.13) & (R[:, 2] < hips[2] + 0.06) & (R[:, 1] < hips[1])
+        SEAT.update(top=float(R[m, 1].min()), z=float(hips[2] - 0.03), hips=float(hips[1]))
+        print('seat (model units): top', round(SEAT['top'], 4), 'hips', round(SEAT['hips'], 4), 'center z', round(SEAT['z'], 4),
+              'hand clear', round(hand_clearance_side(rig, p, 'Left'), 4), round(hand_clearance_side(rig, p, 'Right'), 4))
+    return p
 
 def lying(rig):
     """醉臥：仰臥，右臂枕在頭下，左手放在胸前，膝微屈。"""

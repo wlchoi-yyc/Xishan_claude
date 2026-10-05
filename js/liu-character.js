@@ -45,9 +45,14 @@ export async function makeLiuCharacter(opts = {}) {
   const head = bone('Head'), neck = bone('Neck'), spine = bone('Spine'), chest = bone('Spine2');
   const hand = bone('RightHand'), middle = bone('RightHandMiddle1'), thumb = bone('RightHandThumb1');
 
-  // 坐着時臀下的一塊扁石（坐姿是小腿垂直放下，需要有座位）。座面高約 0.43 米，與 tools/liu-model 的坐姿一致。
-  const seat = makeRock(0.32, '#8b877b', 77);
-  seat.scale.set(1.15, 0.8, 1.0); seat.position.set(0, 0.15, -0.07);
+  // 坐着時臀下的一塊平頂石。石面高度 0.43 米、中心在臀下，與 tools/liu-model 計算的長袍底面一致（約 0.436 米），坐姿不會凌空。
+  const seat = makeRock(0.34, '#8b877b', 77);
+  {
+    const pos = seat.geometry.attributes.position, TOP = 0.16;
+    for (let i = 0; i < pos.count; i++) if (pos.getY(i) > TOP) pos.setY(i, TOP);   // 削平石頂，成為座面
+    pos.needsUpdate = true; seat.geometry.computeVertexNormals();
+  }
+  seat.scale.set(1.05, 1, 0.95); seat.position.set(0, 0.43 - 0.16, -0.06);
   seat.castShadow = false; seat.receiveShadow = true; seat.visible = false;
   root.add(seat);
   const mixer = new THREE.AnimationMixer(actor);
