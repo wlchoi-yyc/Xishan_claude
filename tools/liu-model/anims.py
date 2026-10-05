@@ -273,11 +273,13 @@ def build_all(rig):
     t3 = talk_arm(rig, S.copy(), 'Left', 0.6, 0.8); t3.r('Head', rx(5), ry(4)); t3.r('Spine2', ry(4))
     C['Talk'] = sample(rig, [(0, S), (0.6, t1), (1.5, t2), (2.4, t1), (3.2, t3), (4.0, S)], fx=breathe(1, 4, 1.5))
 
-    # 散步（施施而行）：負手、步伐從容
-    HB = hands_behind(rig)
+    # 散步（施施而行）：雙手自然垂下輕擺、步伐從容（不再負手，避免雙手交疊變形）
     def step(ph):
-        p = HB.copy(); s = np.sin(ph); c = np.cos(ph)
-        p.r('Spine', rx(5))
+        p = S.copy(); s = np.sin(ph); c = np.cos(ph)
+        p.r('Spine', rx(4))
+        p.r('LeftArm', rx(12 * s)); p.r('RightArm', rx(-12 * s))
+        p.r('LeftForeArm', hinge(rig, 'LeftForeArm', 8 + 6 * max(0, -s)))
+        p.r('RightForeArm', hinge(rig, 'RightForeArm', 8 + 6 * max(0, s)))
         p.set('LeftUpLeg', rx(-24 * s)); p.set('RightUpLeg', rx(24 * s))
         p.set('LeftLeg', hinge(rig, 'LeftLeg', -max(0, -c) * 38 - 6))
         p.set('RightLeg', hinge(rig, 'RightLeg', -max(0, c) * 38 - 6))
@@ -340,16 +342,12 @@ def build_all(rig):
         p.r('Neck', rx(10 + 4 * np.sin(w * 2))); p.r('Head', rz(-6 * np.sin(w + 1)), rx(6))
     C['DrunkSway'] = sample(rig, [(0, Sit), (5, Sit)], fx=sway)
 
-    # 作揖（拱手）：站立，左手抱右拳，躬身
-    gong = S.copy()
-    print('bow L', reach(gong, 'Left', [0.035, 0.70, 0.20], {3: 20}))
-    print('bow R', reach(gong, 'Right', [-0.015, 0.69, 0.21], {3: 20}))
-    gong.set('LeftHand', rz(-20)); gong.set('RightHand', rz(20))
-    curl(gong, 'Right', 60); curl(gong, 'Left', 20)
-    bow = gong.copy(); bow.r('Spine', rx(14)); bow.r('Spine1', rx(8)); bow.r('Head', rx(8)); bow.move(0, -0.004, -0.01)
-    C['Bow'] = sample(rig, [(0, S), (0.7, gong), (1.3, bow), (2.1, bow), (2.7, gong), (3.4, S)])
+    # 躬身致意：雙手自然垂在身旁，只彎腰點頭（不拱手，避免雙手交疊變形）
+    bow = S.copy(); bow.r('Spine', rx(12)); bow.r('Spine1', rx(8)); bow.r('Head', rx(10)); bow.move(0, -0.004, -0.01)
+    for side, sg in (('Left', 1), ('Right', -1)): bow.r(f'{side}Arm', rx(-6))
+    C['Bow'] = sample(rig, [(0, S), (0.9, bow), (1.8, bow), (2.8, S)])
 
-    # 負手遠眺：站立待機
-    gz = HB.copy(); gz.r('Head', rx(-4)); gz.r('Spine2', rx(-2))
+    # 遠眺：站立，雙手自然垂下，微微抬頭
+    gz = S.copy(); gz.r('Head', rx(-5)); gz.r('Spine2', rx(-2))
     C['GazeIdle'] = sample(rig, [(0, gz), (6, gz)], fx=breathe(1, 6, 1))
     return C

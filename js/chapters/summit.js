@@ -741,14 +741,14 @@ async function epilogue(w, liu) {
   ], { name: '你' });
   if (ans === 'C') {
     ui.hideDialog();
-    // 微笑，向玩家拱手作揖
+    // 微笑，向玩家躬身致意
     const bow = liu.userData.gesture?.('Bow');
     await ui.whisper('柳宗元微笑。', { hold: 2.4 });
     await bow;
   } else {
     await ui.say('柳宗元', '也對。');
   }
-  // 之後負手而立，望向遠方
+  // 之後站着望向遠方
   liu.userData.setIdle?.('GazeIdle');
   watch(liu, false);
   liu.userData.lookTarget = new THREE.Vector3(-2000, -100, 300);
