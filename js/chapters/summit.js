@@ -709,7 +709,9 @@ async function epilogue(w, liu) {
 
   // 兩人站起來
   await ui.fadeOut(0.8);
-  liu.userData.setPose('stand');
+  // 淡入時他已經端正站着，不拍由坐到站的過程
+  liu.userData.setIdle?.(null);
+  liu.userData.setPose('stand', { instant: true });
   liu.userData.customArms = false;
   liu.position.set(LEDGE.x - 0.2, LEDGE.y, LEDGE.z);
   E.player.eye = 1.6;

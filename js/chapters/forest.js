@@ -493,33 +493,39 @@ export async function chapter2() {
   const group = [liu, f1, f2];
   // 半透明，表示是「過去」的情景
   group.forEach(p => { p.traverse(o => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.0; } }); scene.add(p); E.persons.add(p); });
-  const setOpacity = (v) => group.forEach(p => p.traverse(o => { if (o.material) o.material.opacity = v; }));
+  const extras = [];   // 情景中的器物（酒壺），與人物一同半透明
+  const setOpacity = (v) => [...group, ...extras].forEach(p => p.traverse(o => { if (o.material) o.material.opacity = v; }));
+  // 轉換姿勢時人影先淡去、換好再淡回，不拍坐下／躺下／站起的過程（避免機械化的動作）
+  const shift = async (fn) => {
+    await tween(0.45, k => setOpacity(0.75 * (1 - k)));
+    fn();
+    await wait(0.2);
+    await tween(0.6, k => setOpacity(0.75 * k));
+  };
   const starts = [{ x: -14, z: -14 }, { x: -16, z: -12 }, { x: -12, z: -16 }];
   const seats = [{ x: -1.2, z: 1.2, ry: 0.4 }, { x: 0.8, z: 2.2, ry: -0.8 }, { x: -2.5, z: 3.4, ry: 2.6 }];
   group.forEach((p, i) => { p.position.set(starts[i].x, H(starts[i].x, starts[i].z), starts[i].z); p.rotation.y = Math.atan2(seats[i].x - starts[i].x, seats[i].z - starts[i].z); });
   await tween(1.2, k => setOpacity(k * 0.75));
 
-  // 走入（施施而行：負手、步伐從容；情景重現的步速較快）
+  // 走入（情景重現的步速較快）
   liu.userData.walkRate = 2;
   group.forEach(p => p.userData.walking = true);
   await tween(4, k => group.forEach((p, i) => { const x = lerp(starts[i].x, seats[i].x, k), z = lerp(starts[i].z, seats[i].z, k); p.position.set(x, H(x, z), z); }), t => t);
-  group.forEach((p, i) => { p.userData.walking = false; p.rotation.y = seats[i].ry; p.userData.setPose('sit'); });
+  group.forEach(p => { p.userData.walking = false; });
+  await shift(() => group.forEach((p, i) => { p.rotation.y = seats[i].ry; p.userData.setPose('sit', { instant: true }); }));
   ui.whisper('披草而坐', { hold: 2.4 });
   await wait(2.5);
-  // 喝酒
-  // 右手握着小酒壺的頸部，舉到嘴邊仰頭而飲
-  const cupPot = makeWinePot('#7a8a70'); cupPot.scale.setScalar(0.5);
-  liu.userData.holdCup(cupPot, { lift: -0.17 });
-  await tween(0.8, k => liu.userData.drinkPose(k));
-  await tween(0.9, k => liu.userData.drinkPose(1 + k));
+  // 喝酒：不做舉壺動作，酒壺放在柳宗元身旁，人物靜坐
+  const pot = makeWinePot('#7a8a70'); pot.scale.setScalar(0.5);
+  pot.position.set(seats[0].x + 0.45, H(seats[0].x + 0.45, seats[0].z + 0.35), seats[0].z + 0.35);
+  pot.traverse(o => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0; } });
+  scene.add(pot); extras.push(pot);
+  await tween(0.8, k => pot.traverse(o => { if (o.material) o.material.opacity = 0.75 * k; }));
   ui.whisper('傾壺而醉', { hold: 2.6 });
-  await tween(1.6, k => { liu.userData.drinkPose(2 - Math.sin(k * Math.PI) * 0.25); group.forEach(p => { p.userData.upper.rotation.z = Math.sin(k * 8) * 0.08; }); });
-  await tween(0.9, k => liu.userData.drinkPose(2 - 2 * k));
-  liu.userData.releaseCup();
+  await wait(2.8);
   // 醉臥
-  await tween(1, k => group.forEach(p => { p.userData.upper.rotation.z = Math.sin(k * 6) * 0.12; }));
   const beds = [{ x: -0.4, z: 1.2, ry: 1.6 }, { x: 1.6, z: 1.2, ry: -1.6 }, { x: -2.4, z: 3.6, ry: 2.8 }];
-  group.forEach((p, i) => { p.userData.setPose('lie'); p.position.set(beds[i].x, H(beds[i].x, beds[i].z), beds[i].z); p.rotation.y = beds[i].ry; });
+  await shift(() => group.forEach((p, i) => { p.userData.setPose('lie', { instant: true }); p.position.set(beds[i].x, H(beds[i].x, beds[i].z), beds[i].z); p.rotation.y = beds[i].ry; }));
   ui.whisper('醉則更相枕以臥', { hold: 2.6 });
   await wait(2.6);
   // 夢
@@ -532,16 +538,16 @@ export async function chapter2() {
   await tween(1, k => { cloud.material.opacity = 0.8 * (1 - k); });
   scene.remove(cloud);
   // 醒來、回家
-  group.forEach((p, i) => { p.userData.setPose('stand'); p.position.set(seats[i].x, H(seats[i].x, seats[i].z), seats[i].z); p.rotation.y = Math.atan2(-18 - seats[i].x, -20 - seats[i].z); });
+  await shift(() => group.forEach((p, i) => { p.userData.setPose('stand', { instant: true }); p.position.set(seats[i].x, H(seats[i].x, seats[i].z), seats[i].z); p.rotation.y = Math.atan2(-18 - seats[i].x, -20 - seats[i].z); }));
   ui.whisper('覺而起，起而歸。', { hold: 2.8 });
-  await wait(liu.userData.isBlenderLiu ? 4.0 : 0.6);
+  await wait(1.2);
   group.forEach(p => p.userData.walking = true);
   const ends = [{ x: -17, z: -19 }, { x: -18, z: -17 }, { x: -15, z: -21 }];
   await tween(4, k => {
     group.forEach((p, i) => { const x = lerp(seats[i].x, ends[i].x, k), z = lerp(seats[i].z, ends[i].z, k); p.position.set(x, H(x, z), z); });
     if (k > 0.6) setOpacity(0.75 * (1 - (k - 0.6) / 0.4));
   }, t => t);
-  group.forEach(p => { scene.remove(p); E.persons.delete(p); });
+  group.forEach(p => { scene.remove(p); E.persons.delete(p); }); scene.remove(pot);
   await wait(0.6);
 
   await ui.caption('以為凡是州之山水有異態者，皆我有也。', { gloss: '他以為永州凡是有奇特姿態的山水，都已經被自己遊遍、盡歸所有了。', hold: 7 });

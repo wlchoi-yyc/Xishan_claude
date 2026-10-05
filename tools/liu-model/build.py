@@ -134,7 +134,7 @@ def add_clip(name, tracks):
         sm.append({'input': ia, 'output': oa, 'interpolation': 'LINEAR'})
         ch.append({'sampler': len(sm) - 1, 'target': {'node': node_of[n], 'path': path}})
     animations.append({'name': name, 'channels': ch, 'samplers': sm})
-add_clip('Idle', {k: (t, v) for k, (t, v) in idle_tracks.items()})
+if 'Idle' not in clips: add_clip('Idle', {k: (t, v) for k, (t, v) in idle_tracks.items()})
 for name, tracks in clips.items(): add_clip(name, tracks)
 
 # ---------------- 5. 輸出 ----------------

@@ -304,11 +304,10 @@ def build_all(rig):
     C = {}
     S = stand(rig); Sit = seated(rig); Lie = lying(rig)
 
-    # 說話（站）：右手自然比劃，點頭
-    t1 = talk_arm(rig, S.copy(), 'Right', 1.0, 0.7); t1.r('Head', rx(4)); t1.r('Spine2', ry(-4))
-    t2 = talk_arm(rig, S.copy(), 'Right', 0.8, 1.2); t2.r('Head', rx(-3), ry(-4))
-    t3 = talk_arm(rig, S.copy(), 'Left', 0.6, 0.8); t3.r('Head', rx(5), ry(4)); t3.r('Spine2', ry(4))
-    C['Talk'] = sample(rig, [(0, S), (0.6, t1), (1.5, t2), (2.4, t1), (3.2, t3), (4.0, S)], fx=breathe(1, 4, 1.5))
+    # 站立待機：端正站立，只有輕微呼吸（原模型的待機會擺動手臂和腿，顯得浮躁）
+    C['Idle'] = sample(rig, [(0, S), (4.5, S)], fx=breathe(0.7, 4.5, 0))
+    # 說話（站）：手不動，只有呼吸和極輕微的點頭
+    C['Talk'] = sample(rig, [(0, S), (4.0, S)], fx=breathe(0.7, 4, 1.0))
 
     # 散步（施施而行）：雙手自然垂下輕擺、步伐從容（不再負手，避免雙手交疊變形）
     def step(ph):
@@ -381,10 +380,9 @@ def build_all(rig):
 
     # 躬身致意：雙手自然垂在身旁，只彎腰點頭（不拱手，避免雙手交疊變形）
     bow = S.copy(); bow.r('Spine', rx(12)); bow.r('Spine1', rx(8)); bow.r('Head', rx(10)); bow.move(0, -0.004, -0.01)
-    for side, sg in (('Left', 1), ('Right', -1)): bow.r(f'{side}Arm', rx(-6))
-    C['Bow'] = sample(rig, [(0, S), (0.9, bow), (1.8, bow), (2.8, S)])
+    C['Bow'] = sample(rig, [(0, S), (1.1, bow), (2.1, bow), (3.3, S)])   # 手臂完全不動，只有上身前傾
 
     # 遠眺：站立，雙手自然垂下，微微抬頭
     gz = S.copy(); gz.r('Head', rx(-5)); gz.r('Spine2', rx(-2))
-    C['GazeIdle'] = sample(rig, [(0, gz), (6, gz)], fx=breathe(1, 6, 1))
+    C['GazeIdle'] = sample(rig, [(0, gz), (6, gz)], fx=breathe(0.7, 6, 0))
     return C

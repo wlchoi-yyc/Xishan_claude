@@ -81,12 +81,12 @@ export async function makeLiuCharacter(opts = {}) {
     advance();
   });
 
-  ud.setPose = pose => {
+  ud.setPose = (pose, { instant = false } = {}) => {
     const previous = ud.pose;
     ud.pose = pose; queue = []; drinking = false; gesture?.done(); gesture = null;
     if (pose !== 'sit') ud.idle = ud.idle === 'DrunkSway' ? null : ud.idle;
-    // 首次放進場景前直接就位；劇情中的變化才播放過渡動作。
-    if (!root.parent || previous === pose) { play(idleName(), { fade: 0 }); evaluate(0); return; }
+    // 首次放進場景前、或劇情要求（instant）時直接就位，不播放坐下／站起等過渡動作。
+    if (instant || !root.parent || previous === pose) { play(idleName(), { fade: 0 }); evaluate(0); return; }
     if (previous === 'lie') queue.push(['LieDown', { reverse: true }]);
     if (pose === 'stand') queue.push(['StandUp', {}]);
     else if (previous === 'stand') queue.push(['SitDown', {}]);
