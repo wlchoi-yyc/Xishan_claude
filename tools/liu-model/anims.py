@@ -267,6 +267,7 @@ def hands_behind(rig, p=None):
     return p
 
 SEAT = {}
+SEAT_TOP = 0.44   # 石面高度（遊戲中的米），與 js/liu-character.js、seat_morph.py 一致
 def seated(rig):
     """坐在石上：大腿稍向下斜、小腿垂直放下，雙腿併攏；雙手自然垂在身旁。"""
     p = stand(rig).copy()
@@ -280,16 +281,17 @@ def seated(rig):
     low = min(o[n][0][1] for n in ('LeftToeBase', 'RightToeBase', 'LeftFoot', 'RightFoot'))
     p.move(0, 0.012 - low, 0)
     p.r('Neck', rx(-2)); p.r('Head', rx(-2))
-    # 正襟危坐：雙手分開，掌心向下輕放在大腿上（不垂在身旁，免得手臂向外撐開）
-    lift = [0.03, 0.03]
-    for _ in range(6):
-        q = p.copy(); hands_on_knees(q, tuple(lift), along=0.68, fingers=5)
-        if not getattr(rig, 'skin', None): break
-        cl = [hand_clearance_down(rig, q, s) for s in ('Left', 'Right')]
-        print('seated hand clearance', np.round(cl, 4))
-        if min(cl) > 0.002: break
-        lift = [l + max(0.0, 0.004 - c) for l, c in zip(lift, cl)]
-    p = q
+    # 雙手自然垂在身旁，與站立時相同（手臂沿用站姿，不向外撐開、不放在腿上）。
+    # 手垂下時指尖剛好碰到石面，所以稍屈手肘，直至手比石面高出約 4 毫米、又不陷進長袍。
+    if getattr(rig, 'skin', None):
+        top = SEAT_TOP / 1.85
+        for side, sg in (('Left', 1), ('Right', -1)):
+            for _ in range(12):
+                low = skin_points(rig, p, rig.skin['hand'][side])[:, 1].min()
+                if low > top + 0.004 / 1.85: break
+                p.r(f'{side}ForeArm', hinge(rig, f'{side}ForeArm', 2))
+            print('seated hand above stone (m)', side, round(float((low - top) * 1.85), 4),
+                  'robe clearance', round(hand_clearance_side(rig, p, side), 4))
     if getattr(rig, 'skin', None):
         # 座位：臀部正下方（盆骨左右各 7 厘米、前後各 5 厘米）長袍底面的最低點＝石面高度
         hips = rig.hips_t + p.t
