@@ -85,6 +85,41 @@ dark_w = np.zeros(nw); np.maximum.at(dark_w, weld, (vlum < 100).astype(float))
 pool = np.where(np.isin(np.arange(nw), np.unique(weld[robe])) & (dark_w < 0.5))[0]   # 擬合用的點：淺色長袍布面
 Q0 = Q.copy()
 act = np.where((Wr > 0.01) & (dark_w < 0.5))[0]
+# 讓長袍貼着大腿：站立時長袍向前垂開的寬鬆布量，坐下後被大腿抬起，堆在腿上像個大肚子。
+# 以大腿骨為軸，布面離軸太遠的點拉近到「大腿＋布料」的半徑（髖部約 9.5 厘米、膝部約 7.5 厘米）；
+# 兩腿之間的布便自然垂進兩膝之間，不再鼓起。
+def jpos(n): return world(names.index('mixamorig:' + n))[:3, 3]
+def sst1(a_, b_, v): return sst(a_, b_, v)
+pull = np.zeros_like(Q); best = np.full(nw, np.inf)
+for side in ('Left', 'Right'):
+    ha, kb = jpos(side + 'UpLeg'), jpos(side + 'Leg')
+    ab = kb - ha; Lt = np.linalg.norm(ab); uu_ = ab / Lt
+    rel = Q - ha; tt = rel @ uu_ / Lt
+    perp = rel - np.outer(rel @ uu_, uu_); rr_ = np.linalg.norm(perp, axis=1) + 1e-9
+    target = (0.095 - 0.02 * np.clip(tt, 0, 1)) / SCALE
+    excess = np.maximum(0, rr_ - target)
+    upv = np.cross(uu_, [1.0, 0, 0]); upv /= np.linalg.norm(upv)
+    topness = (perp @ upv) / rr_                                     # 1＝大腿正上方，0＝側面，負＝下方
+    fade = sst1(-0.05, 0.12, tt) * (1 - sst1(0.8, 1.0, tt)) * sst1(-0.2, 0.3, topness)
+    mv = -(perp / rr_[:, None]) * (excess * fade)[:, None]
+    closer = rr_ < best
+    pull[closer] = mv[closer]; best[closer] = rr_[closer]
+# 兩膝之間：布不會像鼓面般撐平，而是垂進兩腿之間，從正面看得出兩個膝頭
+kL, kR = jpos('LeftLeg'), jpos('RightLeg'); hL = jpos('LeftUpLeg')
+midx = (kL[0] + kR[0]) / 2; half = abs(kL[0] - kR[0]) / 2
+tt_mid = np.clip((Q[:, 2] - hL[2]) / (kL[2] - hL[2]), 0, 1.2)
+gap = np.clip(1 - np.abs(Q[:, 0] - midx) / half, 0, 1) ** 1.5
+axis_y = hL[1] + (kL[1] - hL[1]) * np.clip(tt_mid, 0, 1)
+above = sst(0.0, 0.03 / SCALE, Q[:, 1] - axis_y)
+pull[:, 1] -= float(os.environ.get('SEAT_SAG', 0.09)) / SCALE * gap * above * sst(0.1, 0.4, tt_mid) * (1 - sst(1.0, 1.15, tt_mid))
+# 膝下垂下的衣襬：站立時下襬很闊，坐下後圍着兩條小腿成一個大鐘形；向中間收窄，像布料從膝頭自然垂下
+low = 1 - sst(0.22, 0.30, by)     # 綁定姿勢中膝以下的布
+narrow = float(os.environ.get('SEAT_NARROW', 0.24))
+lowW = np.zeros(nw); np.maximum.at(lowW, weld, low * robe)
+pull[:, 0] -= (Q[:, 0] - midx) * narrow * lowW
+SHRINK = float(os.environ.get('SEAT_SHRINK', 1.0))
+Q[act] += SHRINK * Wr[act, None] * pull[act]
+print('robe pulled onto thighs, max (cm)', round(float(np.linalg.norm(pull[act], axis=1).max() * SCALE * 100), 1))
 for _ in range(int(os.environ.get('SEAT_PASSES', 3))):
     tree = cKDTree(Q[pool]); newQ = Q.copy()
     for i in act:
