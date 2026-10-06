@@ -39,21 +39,26 @@ export async function makeLiuCharacter(opts = {}) {
     o.receiveShadow = true;
   });
   // 口部張合：模型內的形變目標 MouthOpen（說話時張合，其餘時間閉口）
-  let mouthMesh = null, mouthIdx = -1, mouth = 0;
-  actor.traverse(o => { if (o.morphTargetDictionary && 'MouthOpen' in o.morphTargetDictionary) { mouthMesh = o; mouthIdx = o.morphTargetDictionary.MouthOpen; } });
+  // 坐石：形變目標 SeatFlat 把臀下的長袍底面平鋪在石面上（見 tools/liu-model/seat_morph.py）
+  let mouthMesh = null, mouthIdx = -1, mouth = 0, seatIdx = -1, seatFlat = 0;
+  actor.traverse(o => {
+    if (!o.morphTargetDictionary) return;
+    if ('MouthOpen' in o.morphTargetDictionary) { mouthMesh = o; mouthIdx = o.morphTargetDictionary.MouthOpen; }
+    if ('SeatFlat' in o.morphTargetDictionary) seatIdx = o.morphTargetDictionary.SeatFlat;
+  });
   const bone = name => actor.getObjectByName(THREE.PropertyBinding.sanitizeNodeName('mixamorig:' + name));
   const head = bone('Head'), neck = bone('Neck'), spine = bone('Spine'), chest = bone('Spine2');
   const hand = bone('RightHand'), middle = bone('RightHandMiddle1'), thumb = bone('RightHandThumb1');
 
-  // 坐着時臀下的一塊平頂石。石面高度 0.43 米：tools/liu-model 量得臀部正下方長袍底面約 0.427 米，
-  // 石面略高 3 毫米、稍稍壓進衣服，臀部與石頭之間不會看見空隙。
+  // 坐着時臀下的一塊平頂石。石面高度 0.44 米，與 tools/liu-model/seat_morph.py 的 SEAT_H 一致：
+  // 坐姿時 SeatFlat 形變把長袍底面壓平在這個高度，臀部與石頭之間不會看見空隙。
   const seat = makeRock(0.34, '#8b877b', 77);
   {
     const pos = seat.geometry.attributes.position, TOP = 0.16;
     for (let i = 0; i < pos.count; i++) if (pos.getY(i) > TOP) pos.setY(i, TOP);   // 削平石頂，成為座面
     pos.needsUpdate = true; seat.geometry.computeVertexNormals();
   }
-  seat.scale.set(1.05, 1, 0.95); seat.position.set(0, 0.43 - 0.16, -0.06);
+  seat.scale.set(1.05, 1, 0.95); seat.position.set(0, 0.44 - 0.16, -0.06);
   seat.castShadow = false; seat.receiveShadow = true; seat.visible = false;
   root.add(seat);
   const mixer = new THREE.AnimationMixer(actor);
@@ -101,7 +106,12 @@ export async function makeLiuCharacter(opts = {}) {
     ud.pose = pose; seat.visible = pose === 'sit'; queue = []; drinking = false; gesture?.done(); gesture = null;
     if (pose !== 'sit') ud.idle = ud.idle === 'DrunkSway' ? null : ud.idle;
     // 首次放進場景前、或劇情要求（instant）時直接就位，不播放坐下／站起等過渡動作。
-    if (instant || !root.parent || previous === pose) { play(idleName(), { fade: 0 }); evaluate(0); return; }
+    if (instant || !root.parent || previous === pose) {
+      play(idleName(), { fade: 0 }); evaluate(0);
+      seatFlat = pose === 'sit' ? 1 : 0;
+      if (mouthMesh && seatIdx >= 0) mouthMesh.morphTargetInfluences[seatIdx] = seatFlat;
+      return;
+    }
     if (previous === 'lie') queue.push(['LieDown', { reverse: true }]);
     if (pose === 'stand') queue.push(['StandUp', {}]);
     else if (previous === 'stand') queue.push(['SitDown', {}]);
@@ -209,6 +219,13 @@ export async function makeLiuCharacter(opts = {}) {
       const want = talking ? 0.25 + 0.75 * syl : 0;
       mouth += (want - mouth) * Math.min(1, dt * 18);
       mouthMesh.morphTargetInfluences[mouthIdx] = mouth;
+      if (seatIdx >= 0) {
+        // 坐好（不在站起／躺下的過渡中）才把長袍平鋪在石上
+        const want = ud.pose === 'sit' && !queue.length && current !== actions.SitDown ? 1 : 0;
+        seatFlat += (want - seatFlat) * Math.min(1, dt * 6);
+        if (want && seatFlat > 0.98) seatFlat = 1;
+        mouthMesh.morphTargetInfluences[seatIdx] = seatFlat;
+      }
     }
     if (upper.rotation.z) rotateChar(chest, Z, upper.rotation.z);
     placeHeld();
