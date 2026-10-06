@@ -1,4 +1,5 @@
 import { makeLiuCharacter } from '../liu-character.js';
+import { makeBodyImprints } from '../body-imprints.js';
 // 第一關：尋找舊足跡（永州山林）
 // 第二關：重建「平日遊山」（山林深處）
 import { E, THREE, ui, audio, enter, clue, watch, dist2D, until } from './common.js';
@@ -379,6 +380,7 @@ function buildGlade() {
   for (let i = 0; i < 26; i++) {
     const a = rr() * 6.28, d = rr() * 15;
     const g = makeGrassPatch(12, 1, { seed: 100 + i, color: '#94a35a' });
+    if (Math.hypot(Math.cos(a) * d + 5, Math.sin(a) * d + 6) < 3.4) continue;   // 讓出人形壓痕的位置
     g.position.set(Math.cos(a) * d, gladeHeight(Math.cos(a) * d, Math.sin(a) * d), Math.sin(a) * d); scene.add(g);
   }
   // 光束
@@ -389,7 +391,7 @@ function buildGlade() {
   }
   const bigRock = natureRock(1.3, '#8a8778', 5) || makeRock(1.3, '#8a8778', 5); bigRock.position.set(3.5, gladeHeight(3.5, -2) + 0.5, -2); bigRock.scale.y = 0.7; scene.add(bigRock);
   // 草地（避開地上的痕跡）
-  const keep = [[-3, 2, 2.2], [3, -0.6, 1], [-5, -6, 2], [6, 5, 1.8], [-9, -13, 1.5]];
+  const keep = [[-3, 2, 2.2], [3, -0.6, 1], [-5, -6, 2.9], [6, 5, 1.8], [-9, -13, 1.5]];
   scene.add(makeGrassField({ count: 900, area: { x0: -30, x1: 30, z0: -30, z1: 30 }, heightAt: gladeHeight, accept: (x, z) => keep.every(([kx, kz, kr]) => Math.hypot(x - kx, z - kz) > kr), seed: 15, scale: [0.4, 0.8] }));
   const clouds = makeClouds({ count: 12, rMin: 200, rMax: 500, yMin: 120, yMax: 200, size: [120, 240], seed: 16 });
   scene.add(clouds);
@@ -421,14 +423,15 @@ export async function chapter2() {
   const grass = place(makeGrassPatch(30, 1.6, { pressed: true, seed: 71, color: '#97a55a' }), -3, 2, H, 0.02); scene.add(grass);
   // 2 酒壺
   const pot = place(makeWinePot('#7a8a70'), 3, -0.6, H, 0.1); pot.rotation.z = 1.4; scene.add(pot);
-  // 3 枕在一起的痕跡：兩個人形壓痕，頭挨着頭
-  const pillow = new THREE.Group();
-  for (const s of [1, -1]) {
-    const dent = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 1.2, 3, 8), new THREE.MeshLambertMaterial({ color: '#6c7a3e' }));
-    dent.rotation.z = Math.PI / 2; dent.rotation.y = s * 0.5; dent.scale.set(1, 1, 0.25);
-    dent.position.set(s * 0.95, 0.05, 0); pillow.add(dent);
-  }
-  place(pillow, -5, -6, H, 0.02); scene.add(pillow);
+  // 3 枕在一起的痕跡：兩個人形壓痕，頭挨着頭（人形內的草被壓平，四周的草仍直立）
+  const ray = new THREE.Raycaster(), down = new THREE.Vector3(0, -1, 0), from = new THREE.Vector3();
+  const groundAt = (x, z) => {   // 貼合實際地形網格（比高度函數準確，壓痕不會陷進地面）
+    ray.set(from.set(x, 50, z), down);
+    const hit = ray.intersectObjects(world.walkables || [], false)[0];
+    return hit ? hit.point.y : H(x, z);
+  };
+  const pillow = makeBodyImprints(groundAt, -5, -6, { yaw: 0.35, seed: 12 });
+  scene.add(pillow);
   // 4 夢境圖案：地上用樹枝畫的雲山圖
   const dreamTex = textCanvas([], { w: 512, h: 512, bg: null, draw: (g) => {
     g.strokeStyle = 'rgba(70,50,30,.9)'; g.lineWidth = 7; g.lineCap = 'round';
