@@ -321,11 +321,18 @@ button { font-family: var(--serif); cursor: pointer; }
 /* ---------- 標題 ---------- */
 #title {
   position: fixed; inset: 0; z-index: 70; display: flex; overflow: auto;
-  background:
-    radial-gradient(ellipse at 70% 30%, rgba(227,181,98,.15), transparent 60%),
-    linear-gradient(180deg, #1b1916 0%, #0c0b0a 100%);
+  --home-art: url('../assets/home/xishan-landscape-20261007.webp');
+  background-color: #10201f;
+  background-image: radial-gradient(ellipse at center, rgba(5,13,12,.48), rgba(5,13,12,.12) 75%), var(--home-art);
+  background-size: cover; background-position: center; background-repeat: no-repeat;
   transition: opacity 1.4s;
 }
+@media (orientation: portrait) {
+  #title { --home-art: url('../assets/home/xishan-portrait-20261007.webp'); }
+}
+#title .titleInner { text-shadow: 0 2px 8px rgba(0,0,0,.95); }
+#title .titleNote { color: #c4bba5; }
+#title #teacherMenu { color: #d1c19d; }
 #title.out { opacity: 0; pointer-events: none; }
 .titleInner { text-align: center; padding: 30px 20px; max-width: 720px; position: relative; margin: auto; }
 #title h1 { margin: 0 0 18px; font-weight: 400; }
