@@ -75,7 +75,16 @@ const bumps = (() => {
   return out;
 })();
 
+// 亭下僕人坐的位置：山坡約 16°，坐在地上伸直的腿會插進坡面，所以這裏鋪平一小塊草地（半徑約 2.2 米，外圍 1.8 米漸變回山坡；地形網格 2 米一格，範圍太小會畫不出來）
+const SERVANT_SPOT = { x: 5.5, z: -10.5 };
+let servantFlatH = null;
 function vistaHeight(x, z) {
+  const d = Math.hypot(x - SERVANT_SPOT.x, z - SERVANT_SPOT.z);
+  if (d > 4.0) return vistaBase(x, z);
+  if (servantFlatH === null) servantFlatH = vistaBase(SERVANT_SPOT.x, SERVANT_SPOT.z);
+  return lerp(servantFlatH, vistaBase(x, z), smoothstep(2.2, 4.0, d));
+}
+function vistaBase(x, z) {
   let h = fbm(x * 0.004, z * 0.004, 4, 3) * 18;
   for (const b of bumps) { const dx = x - b.x, dz = z - b.z; const d2 = dx * dx + dz * dz; if (d2 < 9 * b.s * b.s) h += b.h * Math.exp(-d2 / (2 * b.s * b.s)); }
   // 亭所在的小山
@@ -146,7 +155,7 @@ function buildVista() {
   // 樹根取「計算高度」與「畫出來的地面」較低者，免得在粗格子的山肩上懸空
   const groundAt = (x, z) => Math.min(vistaHeight(x, z), (inNear(x, z) ? nearTerrain : terrain).userData.surfaceAt(x, z)) - 0.2;
   scene.add(makeTrees(trees, groundAt));
-  scene.add(makeGrassField({ count: 1400, area: { x0: -40, x1: 40, z0: -40, z1: 40 }, heightAt: vistaHeight, accept: (x, z) => Math.hypot(x, z) > 4.5, seed: 12, scale: [0.45, 0.9] }));
+  scene.add(makeGrassField({ count: 1400, area: { x0: -40, x1: 40, z0: -40, z1: 40 }, heightAt: vistaHeight, accept: (x, z) => Math.hypot(x, z) > 4.5 && Math.hypot(x - SERVANT_SPOT.x, z - SERVANT_SPOT.z) > 1.5, seed: 12, scale: [0.45, 0.9] }));
   addXishanPinnacles(scene, XISHAN.x, XISHAN.z, vistaHeight, 3);
 
   // 西山頂的光暈（「始指異之」時亮起）
@@ -270,7 +279,7 @@ export async function chapter3() {
   audio.ambience({ wind: 0.35, birds: 0.5 });
   // 年輕僕人：坐在草地上，左膝屈起、按着扭傷的腳踝（立體模型，載不到便用程式人物）
   const servant = await makeYoungServant({ name: '僕人' });
-  const sp = { x: 5.5, z: -10.5 };
+  const sp = SERVANT_SPOT;
   servant.position.set(sp.x, world.heightAt(sp.x, sp.z), sp.z);
   servant.rotation.y = Math.atan2(-sp.x, -sp.z); // 面向亭子（玩家走來的方向）
   world.scene.add(servant); E.persons.add(servant);
