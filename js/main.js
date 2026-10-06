@@ -1,5 +1,5 @@
 import { loadLiuCharacter } from './liu-character.js';
-import { loadServantCharacter } from './servant-character.js';
+import { loadServantCharacter, loadYoungServant } from './servant-character.js';
 // 主程式：標題畫面、章節流程
 import { E, freeze } from './engine.js';
 import * as ui from './ui.js';
@@ -18,6 +18,7 @@ import { applyWind } from './world.js';
 const natureReady = loadNature(applyWind);
 loadLiuCharacter();
 loadServantCharacter();
+loadYoungServant();
 
 const CHAPTERS = [
   { name: '序章　柳宗元去了哪裏？', run: prologue },

@@ -1,32 +1,40 @@
-// 老僕（序章，Tripo 立體模型 + 自建 Mixamo 式骨架）。動作已烘焙在 GLB 內：Idle Talk Bow。
-// 原模型雙手自然垂在身旁，與衣服相連，因此所有動作都不移動手臂，只有呼吸、輕微點頭和鞠躬。
-// 說話時以形變目標 MouthOpen 張合口部（見 assets/characters/README.md、tools/servant-model）。
+// 自建骨架的 Tripo 人物（tools/servant-model）。動作已烘焙在 GLB 內，說話時以形變目標 MouthOpen 張合口部。
+//   老僕（序章）：old-servant.glb，Idle Talk Bow；雙手垂在身旁，所有動作都不移動手臂。
+//   年輕僕人（第三關，法華寺外）：young-servant.glb，坐在草地上；Idle 輕揉腳踝，Talk 停手、輕輕點頭。
 import { THREE, E } from './engine.js';
 import { GLTFLoader } from '../lib/addons/loaders/GLTFLoader.js';
 import { clone } from '../lib/addons/utils/SkeletonUtils.js';
 import { makePerson } from './people.js';
 
-const MODEL_URL = 'assets/characters/old-servant.glb';
-// 模型原高 0.98，放大到約 1.69 米（老人微駝，比柳宗元略矮）。
-const SCALE = 1.73;
-
-let loading;
-export function loadServantCharacter() {
-  if (!loading) loading = fetch(MODEL_URL)
-    .then(r => { if (!r.ok) throw new Error(`${MODEL_URL}: ${r.status}`); return r.arrayBuffer(); })
+const MODELS = {
+  // 模型原高 0.98，放大到約 1.69 米（老人微駝，比柳宗元略矮）。
+  old: { url: 'assets/characters/old-servant.glb', scale: 1.73, fallback: 'oldServant', label: '老僕', hitH: 1.7 },
+  // 年輕僕人約 1.62 米；坐在地上，身體不轉向玩家，只轉頭。
+  young: { url: 'assets/characters/young-servant.glb', scale: 1.65, fallback: 'servant', label: '年輕僕人', hitH: 1.0, seated: true },
+};
+const loading = {};
+function load(kind) {
+  const M = MODELS[kind];
+  if (!loading[kind]) loading[kind] = fetch(M.url)
+    .then(r => { if (!r.ok) throw new Error(`${M.url}: ${r.status}`); return r.arrayBuffer(); })
     .then(buf => new GLTFLoader().parseAsync(buf, 'assets/characters/'))
-    .catch(error => { console.warn('老僕模型未能載入，使用備用人物。', error); return null; });
-  return loading;
+    .catch(error => { console.warn(`${M.label}模型未能載入，使用備用人物。`, error); return null; });
+  return loading[kind];
 }
+export const loadServantCharacter = () => load('old');
+export const loadYoungServant = () => load('young');
+export const makeServantCharacter = (opts = {}, waitMs = 8000) => makeCharacter('old', opts, waitMs);
+export const makeYoungServant = (opts = {}, waitMs = 8000) => makeCharacter('young', opts, waitMs);
 
-export async function makeServantCharacter(opts = {}, waitMs = 8000) {
+async function makeCharacter(kind, opts, waitMs) {
+  const M = MODELS[kind];
   let timeout;
-  const gltf = await Promise.race([loadServantCharacter(), new Promise(r => { timeout = setTimeout(r, waitMs, null); })]);
+  const gltf = await Promise.race([load(kind), new Promise(r => { timeout = setTimeout(r, waitMs, null); })]);
   clearTimeout(timeout);
-  if (!gltf) return makePerson({ preset: 'oldServant', ...opts });
+  if (!gltf) { const p = makePerson({ preset: M.fallback, ...opts }); if (M.seated) p.userData.setPose('sit'); return p; }
 
   const root = new THREE.Group(), actor = clone(gltf.scene);
-  actor.scale.setScalar(SCALE);
+  actor.scale.setScalar(M.scale);
   root.add(actor);
   let mouthMesh = null, mouthIdx = -1, mouth = 0;
   actor.traverse(o => {
@@ -39,15 +47,15 @@ export async function makeServantCharacter(opts = {}, waitMs = 8000) {
     // 點擊判定交給下面的簡單碰撞體，不必逐個三角形做蒙皮運算
     o.raycast = () => {};
     // 模型的貼圖分塊很碎，皮膚旁邊就是深色衣料：遠看時縮小貼圖（mipmap）會把深色混進臉上，成為黑色條紋。
-    // 老僕只在室內近距離出現，直接取樣原圖即可。
+    // 兩位僕人都只在近距離出現，直接取樣原圖即可。
     for (const k of ['map', 'normalMap']) {
       const t = o.material[k];
       if (t && t.generateMipmaps) { t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true; }
     }
     if (o.morphTargetDictionary && 'MouthOpen' in o.morphTargetDictionary) { mouthMesh = o; mouthIdx = o.morphTargetDictionary.MouthOpen; }
   });
-  const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.7, 8), new THREE.MeshBasicMaterial({ visible: false }));
-  hit.position.y = 0.85;
+  const hit = new THREE.Mesh(new THREE.CylinderGeometry(M.seated ? 0.45 : 0.28, M.seated ? 0.45 : 0.28, M.hitH, 8), new THREE.MeshBasicMaterial({ visible: false }));
+  hit.position.y = M.hitH / 2;
   root.add(hit);
 
   const bone = name => actor.getObjectByName(THREE.PropertyBinding.sanitizeNodeName('mixamorig:' + name));
@@ -57,7 +65,7 @@ export async function makeServantCharacter(opts = {}, waitMs = 8000) {
 
   let current = null, gesture = null, elapsed = 0, gazeYaw = 0, gazePitch = 0;
   const ud = root.userData;
-  Object.assign(ud, { name: opts.name || '', pose: 'stand', walking: false, head, upper: new THREE.Group(),
+  Object.assign(ud, { name: opts.name || '', pose: M.seated ? 'sit' : 'stand', walking: false, head, upper: new THREE.Group(),
     armL: new THREE.Group(), armR: new THREE.Group(), body: actor, mixer, actions });
 
   function play(name, { once = false, fade = .4 } = {}) {
@@ -76,7 +84,7 @@ export async function makeServantCharacter(opts = {}, waitMs = 8000) {
     if (gesture && e.action === actions[gesture.name]) { const g = gesture; gesture = null; play(idleName(), { fade: .6 }); g.done(); }
   });
 
-  ud.setPose = () => {};               // 老僕只會站着
+  ud.setPose = () => {};               // 姿勢固定（老僕站着、年輕僕人坐在地上）
   ud.setIdle = () => {};
   ud.busy = () => !!gesture;
   // 一次性動作：Bow（雙手不動，只彎上背、低頭）
@@ -126,7 +134,7 @@ export async function makeServantCharacter(opts = {}, waitMs = 8000) {
       root.getWorldPosition(pos);
       const want = Math.atan2(target.x - pos.x, target.z - pos.z) - (root.parent?.rotation.y || 0);
       const speed = ud.turnSpeed ?? 2.2;
-      if (!gesture) root.rotation.y += angleDiff(root.rotation.y, want) * Math.min(1, dt * speed);
+      if (!gesture && !M.seated) root.rotation.y += angleDiff(root.rotation.y, want) * Math.min(1, dt * speed);
       yaw = THREE.MathUtils.clamp(angleDiff(root.rotation.y, want), -1.0, 1.0);
       head.getWorldPosition(headPos);
       pitch = THREE.MathUtils.clamp(-Math.atan2(target.y - headPos.y, Math.hypot(target.x - headPos.x, target.z - headPos.z)), -.5, .4);

@@ -1,6 +1,7 @@
 // 第三關：法華西亭——第一個真正的線索
 // 第四關（上）：亭下的僕人
 import { E, THREE, ui, audio, enter, clue, watch, until, dist2D } from './common.js';
+import { makeYoungServant } from '../servant-character.js';
 import { addInteractable, removeInteractable, freeze, unfreeze, wait, lookAt, moveTo, turnTo, tween, setControls, isLookingAt, lerp } from '../engine.js';
 import { baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makePavilion, makeHouse, makePerson, fbm, noise2, rng, mixHex, smoothstep, lam } from '../world.js';
 import { waterize } from '../world.js';
@@ -267,10 +268,10 @@ export async function chapter3() {
 
   // ------ 第四關（上）：亭下的僕人 ------
   audio.ambience({ wind: 0.35, birds: 0.5 });
-  const servant = makePerson({ preset: 'servant', name: '僕人' });
+  // 年輕僕人：坐在草地上，左膝屈起、按着扭傷的腳踝（立體模型，載不到便用程式人物）
+  const servant = await makeYoungServant({ name: '僕人' });
   const sp = { x: 5.5, z: -10.5 };
   servant.position.set(sp.x, world.heightAt(sp.x, sp.z), sp.z);
-  servant.userData.setPose('sit');
   servant.rotation.y = Math.atan2(-sp.x, -sp.z); // 面向亭子（玩家走來的方向）
   world.scene.add(servant); E.persons.add(servant);
   const tree = makeTrees([{ type: 'broad', x: sp.x + 1.6, z: sp.z - 1.2, s: 1.3 }], world.heightAt); world.scene.add(tree);
@@ -278,7 +279,7 @@ export async function chapter3() {
   audio.tone(220, 0.4, { type: 'triangle', vol: 0.05, slideTo: 180 });
 
   await moveTo(seatPos.x * 0.6, seatPos.z * 0.6, 1, { eye: 1.6 });
-  await lookAt(new THREE.Vector3(sp.x, world.heightAt(sp.x, sp.z) + 1, sp.z), 1.2);
+  await lookAt(new THREE.Vector3(sp.x, world.heightAt(sp.x, sp.z) + 0.7, sp.z), 1.2);
   await ui.say('', '亭子下面傳來一聲輕輕的呻吟。樹下坐着一個人，正揉着腳踝。');
   ui.hideDialog();
   ui.showDpad(true);
@@ -288,7 +289,7 @@ export async function chapter3() {
     const dx = E.player.pos.x - sp.x, dz = E.player.pos.z - sp.z, dd = Math.hypot(dx, dz) || 1;
     if (dd > 2.3) await moveTo(sp.x + dx / dd * 2.0, sp.z + dz / dd * 2.0, Math.min(2, (dd - 2) * 0.5));
     watch(servant, true);
-    await lookAt(new THREE.Vector3(sp.x, world.heightAt(sp.x, sp.z) + 0.9, sp.z), 0.8);
+    await lookAt(new THREE.Vector3(sp.x, world.heightAt(sp.x, sp.z) + 0.75, sp.z), 0.8);
     await wait(0.6);
     await ui.say('僕人', '你……是府上派來找柳先生的？');
     await ui.choose([{ label: '是。你見過柳先生嗎？' }], { name: '你' });

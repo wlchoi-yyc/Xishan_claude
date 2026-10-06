@@ -81,3 +81,24 @@ python3 tools/liu-model/rebuild_anims.py assets/characters/liu-zongyuan.glb
 ```
 python3 tools/servant-model/build_servant.py 原始Tripo模型.glb assets/characters/old-servant.glb
 ```
+
+# 年輕僕人（young-servant.glb）
+
+第三關法華寺外、坐在草地上扭傷了腳的僕人。原始 Tripo 模型沒有骨架，由 `tools/servant-model/build_young.py` 自動綁骨（與老僕同一方法）：
+
+- 骨架按網格橫切面量得的身體比例擺放（模型高 0.98：肩 0.735、肘 0.61、腕 0.465、髖 0.47、膝 0.27、踝 0.075）。
+- 上衣下襬、腰帶垂下的帶子與褲頭在同一高度：以顏色貼圖分辨（褲子較深）。褲子跟大腿；上衣和帶子跟盆骨，只有前襟下緣部分跟大腿，坐下時搭在腿上。
+- 口部形變 `MouthOpen`（唇線 y=0.836）及貼圖上的唇縫。
+
+動作（坐在地上）：右腿向前伸直、腳尖微微外翻；左膝屈起，左手按在左腳踝上方；右手撐在身後地上。
+
+| 動作 | 用途 |
+|---|---|
+| Idle | 呼吸，左手輕輕揉腳踝 |
+| Talk | 說話時停手，呼吸加輕微點頭 |
+
+遊戲中由 `js/servant-character.js` 的 `makeYoungServant()` 載入（遊戲開始時預先載入，載不到便用程式繪製的人物）。他坐在地上，望向玩家時只轉頭，身體不轉。高約 1.62 米（放大 1.65 倍）。
+
+```
+python3 tools/servant-model/build_young.py 原始Tripo模型.glb assets/characters/young-servant.glb
+```
