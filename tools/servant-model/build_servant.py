@@ -93,7 +93,10 @@ for _ in range(3):
     for i in range(len(P)):
         if len(nb[i]): Wn[i] = 0.5 * Wd[i] + 0.5 * Wd[nb[i]].mean(0)
     Wd = Wn
-top = np.argsort(-Wd, 1)[:, :4]
+# 原模型沿貼圖接縫把同一位置的頂點分成幾份；權重必須一致，否則轉頭、說話時接縫被撕開，臉上出現裂痕
+_, weld = np.unique(np.round(P, 5), axis=0, return_inverse=True); weld = weld.reshape(-1)
+Wm = np.zeros((weld.max() + 1, Wd.shape[1])); np.add.at(Wm, weld, Wd); Wd = (Wm / np.bincount(weld)[:, None])[weld]
+top = np.argsort(-Wd, 1, kind='stable')[:, :4]
 Wt = np.take_along_axis(Wd, top, 1); Wt /= Wt.sum(1, keepdims=True)
 Jt = np.vectorize(lambda c: JI[DEF[c]])(top).astype(np.uint8)
 print('skin: arm', arm.sum(), 'head', head.sum(), 'trousers', trous.sum(), 'skirt', skirt.sum(), 'torso', torso.sum())
