@@ -175,7 +175,7 @@ def orient_hand(p, side, f_des, n_des):
     p.R[H] = qmul(qinv(Dp), qmul(Q, qmul(Dp, p.R[H])))
     return p
 
-def hands_on_knees(p, lift=0.045, along=0.62):
+def hands_on_knees(p, lift=0.045, along=0.62, fingers=14):
     lifts = lift if isinstance(lift, (tuple, list)) else (lift, lift)
     """雙手分開，掌心向下輕放在兩膝上，手指自然微曲。"""
     rig = p.rig
@@ -186,7 +186,7 @@ def hands_on_knees(p, lift=0.045, along=0.62):
         print('knee', side, reach(p, side, wrist, {0: 0, 1: 10, 3: 0}))
         d = knee - hip; d[1] = 0; d /= np.linalg.norm(d)
         orient_hand(p, side, d + np.array([0, -0.12, 0]), [0, -1, 0])   # 手掌近乎平放在腿上
-        curl(p, side, 14)
+        curl(p, side, fingers)
     return p
 
 
@@ -237,9 +237,14 @@ def hand_clearance_side(rig, p, side):
     return worst
 
 _STAND = {}
+STAND_ARM_DOWN = 16   # 上臂由靜止 A 字姿勢向下轉的角度
 def stand(rig):
     if 'p' in _STAND: return _STAND['p'].copy()
     p = Pose(rig)
+    # 肩膀保持模型原本的高度（不垂肩）；上臂由 A 字姿勢自然垂下、略向前，手肘微曲
+    for side, sg in (('Left', 1), ('Right', -1)):
+        p.set(f'{side}Arm', rz(-sg * STAND_ARM_DOWN), rx(-4))
+        p.set(f'{side}ForeArm', hinge(rig, f'{side}ForeArm', 10))
     curl(p, 'Left', 12); curl(p, 'Right', 12)
     # 雙手自然垂下時不要陷進長袍：逐步把手臂稍為張開，直至手離衣服約 0.8 厘米
     if getattr(rig, 'skin', None):
@@ -275,21 +280,27 @@ def seated(rig):
     low = min(o[n][0][1] for n in ('LeftToeBase', 'RightToeBase', 'LeftFoot', 'RightFoot'))
     p.move(0, 0.012 - low, 0)
     p.r('Neck', rx(-2)); p.r('Head', rx(-2))
-    # 雙手自然垂下（上臂略向前、手肘微曲）；若陷進衣服，逐步把手臂稍為張開
-    for side, sg in (('Left', 1), ('Right', -1)):
-        p.r(f'{side}Arm', rz(-sg * 4), rx(-10)); p.r(f'{side}ForeArm', hinge(rig, f'{side}ForeArm', 12))
+    # 正襟危坐：雙手分開，掌心向下輕放在大腿上（不垂在身旁，免得手臂向外撐開）
+    lift = [0.03, 0.03]
+    for _ in range(6):
+        q = p.copy(); hands_on_knees(q, tuple(lift), along=0.68, fingers=5)
+        if not getattr(rig, 'skin', None): break
+        cl = [hand_clearance_down(rig, q, s) for s in ('Left', 'Right')]
+        print('seated hand clearance', np.round(cl, 4))
+        if min(cl) > 0.002: break
+        lift = [l + max(0.0, 0.004 - c) for l, c in zip(lift, cl)]
+    p = q
     if getattr(rig, 'skin', None):
-        for side, sg in (('Left', 1), ('Right', -1)):
-            for _ in range(20):
-                if hand_clearance_side(rig, p, side) > 0.0045: break
-                p.r(f'{side}Arm', rz(sg * 1.5))
-        # 座位：臀下衣服的最低點（石面高度）與位置
+        # 座位：臀部正下方（盆骨左右各 7 厘米、前後各 5 厘米）長袍底面的最低點＝石面高度
         hips = rig.hips_t + p.t
         R = skin_points(rig, p, rig.skin['robe'])
-        m = (np.abs(R[:, 0] - hips[0]) < 0.11) & (R[:, 2] > hips[2] - 0.13) & (R[:, 2] < hips[2] + 0.06) & (R[:, 1] < hips[1])
-        SEAT.update(top=float(R[m, 1].min()), z=float(hips[2] - 0.03), hips=float(hips[1]))
+        m = (np.abs(R[:, 0] - hips[0]) < 0.07) & (np.abs(R[:, 2] - hips[2]) < 0.05) & (R[:, 1] < hips[1])
+        SEAT.update(top=float(R[m, 1].min()), z=float(hips[2]), hips=float(hips[1]))
+        # 臀下長袍底面的前後範圍（石面要承托這一段）
+        band = (np.abs(R[:, 0] - hips[0]) < 0.07) & (R[:, 1] < SEAT['top'] + 0.015) & (R[:, 1] > SEAT['top'] - 0.003) & (np.abs(R[:, 2] - hips[2]) < 0.2)
+        SEAT.update(zmin=float(R[band, 2].min()), zmax=float(R[band, 2].max()))
         print('seat (model units): top', round(SEAT['top'], 4), 'hips', round(SEAT['hips'], 4), 'center z', round(SEAT['z'], 4),
-              'hand clear', round(hand_clearance_side(rig, p, 'Left'), 4), round(hand_clearance_side(rig, p, 'Right'), 4))
+              'contact z', round(SEAT['zmin'], 4), '..', round(SEAT['zmax'], 4))
     return p
 
 def lying(rig):

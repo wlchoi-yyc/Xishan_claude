@@ -15,11 +15,11 @@
 
 | 動作 | 用途 |
 |---|---|
-| Idle | 端正站立，只有輕微呼吸（原模型的待機會擺動手腳，已取代） |
+| Idle | 端正站立，只有輕微呼吸。肩膀保持模型原本高度，上臂由 A 字姿勢自然垂下、手肘微曲（舊版沿用 Tripo 待機，鎖骨下垂 23°、手肘向內屈，肩膀看來塌陷變形，已改正） |
 | Walk | 雙手自然輕擺、步伐從容的「施施而行」（第二關情景重現） |
 | Talk / SeatedTalk | 站着或坐着說話，雙手都不動，只有呼吸和輕微點頭 |
 | SitDown / StandUp | 屈膝蹲低再盤膝坐下；反向站起 |
-| SeatedIdle | 坐在平頂石上：大腿稍向下斜、小腿垂直放下、雙腿併攏，長袍整幅垂下；雙手自然垂在身旁；只有輕微呼吸（石面高度按長袍底面計算，由 `liu-character.js` 在坐姿時顯示） |
+| SeatedIdle | 正襟危坐於平頂石上：大腿稍向下斜、小腿垂直放下、雙腿併攏；雙手分開、掌心向下輕放在大腿近膝處（舊版雙手垂在身旁，為免陷進衣服而向外撐開，像叉腰）；只有輕微呼吸。石面高度按臀部正下方的長袍底面計算，由 `liu-character.js` 在坐姿時顯示 |
 | Drink | 掌心托杯舉到唇前（0→1）、手掌後傾杯口貼唇飲酒（1→2），由劇情 `drinkPose(k)` 控制 |
 | LieDown / LyingIdle | 由坐姿向後躺下，右臂枕頭（醉則更相枕以臥） |
 | Invite | 左手向身旁攤開——「坐下來吧」 |
@@ -36,14 +36,18 @@
 
 ## 手不會陷進衣服
 
-`anims.py` 會按每個姿勢計算長袍實際的蒙皮位置（`skin_points`），再調整手的位置：站立時把手臂稍為張開，直至手離衣服側面約 1 厘米；坐着時把手提高，直至手掌在大腿衣面之上、沒有衣服蓋住手。
+`anims.py` 會按每個姿勢計算長袍實際的蒙皮位置（`skin_points`），再調整手的位置：站立時把手臂稍為張開，直至手離衣服側面約 1 厘米；坐着時把放在大腿上的手逐步提高，直至手掌在大腿衣面之上、沒有衣服蓋住手。
 
 ## 重新產生
 
 ```
 python3 tools/liu-model/build.py 原始Tripo模型.glb assets/characters/liu-zongyuan.glb
 ```
-需要 Python 3、numpy、Pillow。動作定義在 `tools/liu-model/anims.py`（以角色座標描述每節骨骼的轉動，手部位置以簡單 IK 搜尋）。`tools/liu-model/view.html?clip=Drink&t=0,1.25,2.5&views=front,side` 可經網頁伺服器預覽任何動作。
+需要 Python 3、numpy、Pillow。原始 Tripo 骨架模型不在倉庫內：只改動作（`anims.py`）時，用
+```
+python3 tools/liu-model/rebuild_anims.py assets/characters/liu-zongyuan.glb
+```
+直接更新遊戲中的 GLB（網格、蒙皮、口部形變、貼圖原封不動，約需五分鐘）。動作定義在 `tools/liu-model/anims.py`（以角色座標描述每節骨骼的轉動，手部位置以簡單 IK 搜尋）。`tools/liu-model/view.html?clip=Drink&t=0,1.25,2.5&views=front,side` 可經網頁伺服器預覽任何動作。
 
 # 老僕（old-servant.glb）
 

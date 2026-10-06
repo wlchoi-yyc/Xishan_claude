@@ -45,7 +45,8 @@ export async function makeLiuCharacter(opts = {}) {
   const head = bone('Head'), neck = bone('Neck'), spine = bone('Spine'), chest = bone('Spine2');
   const hand = bone('RightHand'), middle = bone('RightHandMiddle1'), thumb = bone('RightHandThumb1');
 
-  // 坐着時臀下的一塊平頂石。石面高度 0.43 米、中心在臀下，與 tools/liu-model 計算的長袍底面一致（約 0.436 米），坐姿不會凌空。
+  // 坐着時臀下的一塊平頂石。石面高度 0.43 米：tools/liu-model 量得臀部正下方長袍底面約 0.427 米，
+  // 石面略高 3 毫米、稍稍壓進衣服，臀部與石頭之間不會看見空隙。
   const seat = makeRock(0.34, '#8b877b', 77);
   {
     const pos = seat.geometry.attributes.position, TOP = 0.16;
