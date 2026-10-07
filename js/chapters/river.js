@@ -5,6 +5,7 @@ import { baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, m
 import { waterize } from '../world.js';
 import { xishanShape, xishanColor, addXishanPinnacles, autumnGround } from './pavilion.js';
 import { makeClouds, makeMist, makeGrassField, makeFarRanges } from '../scenery.js';
+import { makeBoatman } from '../servant-character.js';
 
 const RIVER_HALF = 80;
 const CREEK = [{ x: -76, z: 16 }, { x: -110, z: 14 }, { x: -140, z: 22 }, { x: -175, z: 18 }, { x: -210, z: 28 }, { x: -250, z: 24 }, { x: -300, z: 36 }, { x: -380, z: 30 }];
@@ -46,7 +47,7 @@ function colorAt(h, slope, x, z) {
   return c;
 }
 
-function buildRiver() {
+function buildRiver(boatman) {
   const B = baseScene({ fog: '#d6ddd8', fogNear: 120, fogFar: 1500, sky: { top: '#6c9fcc', sunDir: [-0.55, 0.5, 0.15], sunColor: '#fff0d4' }, hemi: ['#e2ebf1', '#5a5842', 1.1], sun: ['#fff0d6', 1.9] });
   const { scene } = B;
   const terrain = makeTerrain({ size: 1800, sizeZ: 1400, seg: 180, segZ: 140, heightAt: terrainH, colorAt });
@@ -69,33 +70,40 @@ function buildRiver() {
 
   // 船與船家
   const boat = makeBoat(); boat.position.set(73, 0.1, 0); scene.add(boat);
-  const boatman = makePerson({ preset: 'boatman', name: '船家' });
-  // 船家站在船尾一側，讓出另一側給乘客上船
-  boatman.position.set(2.1, 0.3, -0.32); boatman.rotation.y = -Math.PI / 2; boat.add(boatman);
+  // 船家站在船尾一側（船中線外 0.32 米），讓出另一側給乘客上船
+  const glb = !!boatman.userData.actions;
+  let oar = null;
+  if (glb) {
+    // 立體模型：先面向碼頭等客，左手握着插在水中的竹篙（竹篙在船外一側）；竹篙由 makeBoatman() 每格按手的位置擺放
+    boatman.position.set(2.1, 0.33, -0.32); boatman.rotation.y = Math.PI / 2; boat.add(boatman);
+    oar = boatman.userData.pole;
+  } else {
+    // 載不到模型時的程式人物：竹篙握在雙手之中，斜插在他右手邊的船舷外
+    boatman.position.set(2.1, 0.3, -0.32); boatman.rotation.y = -Math.PI / 2; boat.add(boatman);
+    oar = new THREE.Group();
+    const bamboo = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 1, 7), lam('#9c8a55'));
+    oar.add(bamboo);
+    for (let i = 1; i < 6; i++) { const n = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.031, 0.018, 7), lam('#7a6a3c')); n.position.y = -0.5 + i / 6; oar.add(n); }
+    boatman.userData.upper.add(oar);
+    // phase：撐船時竿子前後擺動（0 = 靜止）
+    const poleAt = (phase = 0) => {
+      const top = new THREE.Vector3(-0.2, 1.95, 0.1 + phase * 0.25);
+      const bot = new THREE.Vector3(-0.98, -0.9, 0.4 - phase * 0.55);
+      const axis = top.clone().sub(bot).normalize();
+      const atY = (y) => bot.clone().lerp(top, (y - bot.y) / (top.y - bot.y));
+      const pL = atY(1.38 + phase * 0.05), pR = atY(1.02 + phase * 0.05);
+      boatman.userData.holdPole(pR, pL, axis);
+      const len = top.distanceTo(bot);
+      oar.position.copy(top).add(bot).multiplyScalar(0.5);
+      oar.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
+      oar.scale.set(1, len, 1);
+      oar.children.forEach((c, i) => { if (i) c.scale.set(1, 1 / len, 1); });
+    };
+    poleAt(0);
+    boatman.userData.extraUpdate = () => { if (!boatman.userData.rowing) poleAt(0); };
+    boatman.userData.poleAt = poleAt;
+  }
   E.persons.add(boatman);
-  // 竹篙：握在船家雙手之中，斜插在他右手邊的船舷外
-  const oar = new THREE.Group();
-  const bamboo = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 1, 7), lam('#9c8a55'));
-  oar.add(bamboo);
-  for (let i = 1; i < 6; i++) { const n = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.031, 0.018, 7), lam('#7a6a3c')); n.position.y = -0.5 + i / 6; oar.add(n); }
-  boatman.userData.upper.add(oar);
-  // phase：撐船時竿子前後擺動（0 = 靜止）
-  const poleAt = (phase = 0) => {
-    const top = new THREE.Vector3(-0.2, 1.95, 0.1 + phase * 0.25);
-    const bot = new THREE.Vector3(-0.98, -0.9, 0.4 - phase * 0.55);
-    const axis = top.clone().sub(bot).normalize();
-    const atY = (y) => bot.clone().lerp(top, (y - bot.y) / (top.y - bot.y));
-    const pL = atY(1.38 + phase * 0.05), pR = atY(1.02 + phase * 0.05);
-    boatman.userData.holdPole(pR, pL, axis);
-    const len = top.distanceTo(bot);
-    oar.position.copy(top).add(bot).multiplyScalar(0.5);
-    oar.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
-    oar.scale.set(1, len, 1);
-    oar.children.forEach((c, i) => { if (i) c.scale.set(1, 1 / len, 1); });
-  };
-  poleAt(0);
-  boatman.userData.extraUpdate = () => { if (!boatman.userData.rowing) poleAt(0); };
-  boatman.userData.poleAt = poleAt;
 
   // 路（三條）
   const pathM = { color: '#9a8b68', opacity: 1, lift: 0.08, seg: 1 };
@@ -145,7 +153,7 @@ function buildRiver() {
   const S = { boating: false };
   const heightAt = (x, z) => S.boating ? Math.max(terrainH(x, z), 0) + 0.45 : (Math.abs(x) < RIVER_HALF + 8 && Math.abs(z) < 2.2 && Math.abs(x) > RIVER_HALF - 12 ? 1.23 : Math.max(terrainH(x, z), 0.2));
   return {
-    scene, heightAt, S, boat, boatman, oar,
+    scene, heightAt, S, boat, boatman, oar, glb,
     clamp: v => {
       if (S.boating) return;
       if (v.x > 0) { v.x = Math.max(v.x, Math.abs(v.z) < 2 ? 78 : RIVER_HALF + 3); v.x = Math.min(v.x, 140); }
@@ -170,8 +178,10 @@ function buildRiver() {
 export async function chapter4() {
   audio.ambience({ wind: 0.4, water: 0.6, waterFreq: 500, birds: 0.5 });
   audio.music('xishan');
-  const world = await enter(buildRiver, { x: 100, z: 0, yaw: Math.PI / 2, pitch: -0.05 });
-  const { boat, boatman, oar, S } = world;
+  // 船家立體模型（標題畫面時已在背景載入；載不到便用程式人物）
+  const boatmanModel = await makeBoatman({ name: '船家' });
+  const world = await enter(() => buildRiver(boatmanModel), { x: 100, z: 0, yaw: Math.PI / 2, pitch: -0.05 });
+  const { boat, boatman, oar, S, glb } = world;
   ui.showDpad(true);
   await ui.chapterCard('第四關', '過湘江，緣染溪', '湘江渡口');
   await ui.say('', '湘江在眼前鋪開，江面寬闊。對岸遠處，那座奇異的山靜靜地立着。');
@@ -192,21 +202,32 @@ export async function chapter4() {
     ui.hideDialog();
   }, { range: 4.5 });
 
-  // 上船：船家轉回船頭方向，玩家從另一側（遠離船家與竹篙）走到船頭
+  // 上船：玩家從另一側（遠離船家與竹篙）走到船頭
   freeze();
   watch(boatman, false);
-  boatman.userData.lookTarget = { x: boat.position.x - 20, y: 1.6, z: -0.32 };
+  // 立體模型的船家站着不轉身（竹篙在船外一側，轉身會掃過船艙）；程式人物則轉回船頭方向
+  boatman.userData.lookTarget = glb ? null : { x: boat.position.x - 20, y: 1.6, z: -0.32 };
   S.boating = true;
   await moveTo(boat.position.x + 2.7, 0.45, 1.0, { eye: 1.5 });
   await moveTo(boat.position.x - 1.2, 0.4, 1.6);
   boatman.userData.lookTarget = null;
-  boatman.rotation.y = -Math.PI / 2;
+  if (glb) {
+    // 玩家已面向船頭、看不見船尾：船家轉身面向江面，雙手握篙準備撐船（篙底斜向船尾）
+    boatman.rotation.y = Math.PI;
+    boatman.userData.setIdle('Row', { instant: true });
+  } else boatman.rotation.y = -Math.PI / 2;
   await turnTo(Math.PI / 2, 0.02, 1);
   setControls({ move: false, look: true, interact: false });
   ui.objective('過湘江');
   const x0 = boat.position.x, x1 = -74;
   let oarT = 0;
   const row = (dt) => {
+    if (glb) {
+      // 撐篙動作烘焙在模型內：每次下篙入水時發出水聲
+      const ph = boatman.userData.rowPhase();
+      if (ph < 0.1 && !row.p) { audio.oar(); row.p = true; } else if (ph > 0.3) row.p = false;
+      return;
+    }
     oarT += dt;
     boatman.userData.rowing = true;
     boatman.userData.poleAt(Math.sin(oarT * 1.6));
@@ -221,6 +242,7 @@ export async function chapter4() {
   await cap;
   E.onUpdate.splice(E.onUpdate.indexOf(row), 1);
   boatman.userData.rowing = false;
+  if (glb) boatman.userData.setIdle('PoleRest');
   ui.journalAdd('遊蹤', '湘江：乘船渡過湘江。', '過湘江');
 
   // 上岸

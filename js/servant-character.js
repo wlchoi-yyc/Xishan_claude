@@ -1,6 +1,8 @@
 // 自建骨架的 Tripo 人物（tools/servant-model）。動作已烘焙在 GLB 內，說話時以形變目標 MouthOpen 張合口部。
 //   老僕（序章）：old-servant.glb，Idle Talk Bow；雙手垂在身旁，所有動作都不移動手臂。
 //   年輕僕人（第三關，法華寺外）：young-servant.glb，坐在草地上；Idle 輕揉腳踝，Talk 停手、輕輕點頭。
+//   船家（第四關，湘江渡口）：boatman.glb，戴斗笠、披蓑衣；Idle／Talk 左手握着插在水中的竹篙，
+//     Row 面向船外雙手撐篙，PoleRest 撐船後雙手握篙站着。竹篙由 makeBoatman() 按手的位置每格擺放。
 import { THREE, E } from './engine.js';
 import { GLTFLoader } from '../lib/addons/loaders/GLTFLoader.js';
 import { clone } from '../lib/addons/utils/SkeletonUtils.js';
@@ -11,6 +13,9 @@ const MODELS = {
   old: { url: 'assets/characters/old-servant.glb', scale: 1.73, fallback: 'oldServant', label: '老僕', hitH: 1.7 },
   // 年輕僕人約 1.62 米；坐在地上，身體不轉向玩家，只轉頭。
   young: { url: 'assets/characters/young-servant.glb', scale: 1.65, fallback: 'servant', label: '年輕僕人', hitH: 1.0, seated: true },
+  // 模型原高 0.98（連斗笠），放大到約 1.74 米（身高約 1.62 米）。遠在碼頭另一端也看得見，貼圖保留 mipmap，免得草衣閃爍。
+  // 點擊範圍用較粗的圓柱（不按外框計算：外框連竹篙長達三米多）。
+  boatman: { url: 'assets/characters/boatman.glb', scale: 1.78, fallback: 'boatman', label: '船家', hitH: 1.75, hitR: 0.5, ownHit: true, mipmaps: true },
 };
 const loading = {};
 function load(kind) {
@@ -23,6 +28,7 @@ function load(kind) {
 }
 export const loadServantCharacter = () => load('old');
 export const loadYoungServant = () => load('young');
+export const loadBoatman = () => load('boatman');
 export const makeServantCharacter = (opts = {}, waitMs = 8000) => makeCharacter('old', opts, waitMs);
 export const makeYoungServant = (opts = {}, waitMs = 8000) => makeCharacter('young', opts, waitMs);
 
@@ -34,6 +40,7 @@ async function makeCharacter(kind, opts, waitMs) {
   if (!gltf) { const p = makePerson({ preset: M.fallback, ...opts }); if (M.seated) p.userData.setPose('sit'); return p; }
 
   const root = new THREE.Group(), actor = clone(gltf.scene);
+  let ud_hit = null;
   actor.scale.setScalar(M.scale);
   root.add(actor);
   let mouthMesh = null, mouthIdx = -1, mouth = 0;
@@ -48,13 +55,14 @@ async function makeCharacter(kind, opts, waitMs) {
     o.raycast = () => {};
     // 模型的貼圖分塊很碎，皮膚旁邊就是深色衣料：遠看時縮小貼圖（mipmap）會把深色混進臉上，成為黑色條紋。
     // 兩位僕人都只在近距離出現，直接取樣原圖即可。
-    for (const k of ['map', 'normalMap']) {
+    if (!M.mipmaps) for (const k of ['map', 'normalMap']) {
       const t = o.material[k];
       if (t && t.generateMipmaps) { t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true; }
     }
     if (o.morphTargetDictionary && 'MouthOpen' in o.morphTargetDictionary) { mouthMesh = o; mouthIdx = o.morphTargetDictionary.MouthOpen; }
   });
-  const hit = new THREE.Mesh(new THREE.CylinderGeometry(M.seated ? 0.45 : 0.28, M.seated ? 0.45 : 0.28, M.hitH, 8), new THREE.MeshBasicMaterial({ visible: false }));
+  const hr = M.hitR ?? (M.seated ? 0.45 : 0.28);
+  const hit = ud_hit = new THREE.Mesh(new THREE.CylinderGeometry(hr, hr, M.hitH, 8), new THREE.MeshBasicMaterial({ visible: false }));
   hit.position.y = M.hitH / 2;
   root.add(hit);
 
@@ -76,16 +84,23 @@ async function makeCharacter(kind, opts, waitMs) {
     next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
     next.clampWhenFinished = once;
     next.play();
-    if (previous && previous !== next) next.crossFadeFrom(previous, fade, false);
+    if (previous && previous !== next) { if (fade > 0) next.crossFadeFrom(previous, fade, false); else previous.stop(); }
     current = next;
   }
-  const idleName = () => (ud.name && E.speaker === ud.name ? 'Talk' : 'Idle');
+  let idleClip = 'Idle', talkClip = 'Talk';
+  const idleName = () => (ud.name && E.speaker === ud.name ? talkClip : idleClip);
   mixer.addEventListener('finished', e => {
     if (gesture && e.action === actions[gesture.name]) { const g = gesture; gesture = null; play(idleName(), { fade: .6 }); g.done(); }
   });
 
   ud.setPose = () => {};               // 姿勢固定（老僕站着、年輕僕人坐在地上）
-  ud.setIdle = () => {};
+  // 指定待機動作（船家：Idle、Row、PoleRest）；說話時用 talk（預設 Idle → Talk，其餘不變）。instant：立即轉換，不淡入。
+  ud.setIdle = (name, { talk, instant = false } = {}) => {
+    if (!actions[name]) return;
+    idleClip = name; talkClip = actions[talk ?? (name === 'Idle' ? 'Talk' : name)] ? (talk ?? (name === 'Idle' ? 'Talk' : name)) : name;
+    if (!gesture) play(idleName(), { fade: instant ? 0 : .5 });
+  };
+  ud.idleClip = () => idleClip;
   ud.busy = () => !!gesture;
   // 一次性動作：Bow（雙手不動，只彎上背、低頭）
   ud.gesture = name => new Promise(done => {
@@ -147,6 +162,64 @@ async function makeCharacter(kind, opts, waitMs) {
     rotateChar(head, pitchAxis.copy(X).applyAxisAngle(Y, gazeYaw), gazePitch * .6);
   };
 
+  // 船家的點擊範圍就是上面的圓柱（common.js 的 addHitProxy 不必再按外框另加一個）
+  if (M.ownHit) ud.hitProxy = ud_hit;
+  ud.gltf = gltf;
   play('Idle', { fade: 0 }); evaluate(0);
+  return root;
+}
+
+// ---------------- 船家與竹篙 ----------------
+// 竹篙不烘焙在模型內：每格按手骨的位置擺放，所以無論動作怎樣轉換，竹篙都一定握在手中。
+// 握篙點與篙軸以手骨的本地座標記錄在 GLB 的 asset.extras（tools/servant-model/build_boatman.py）。
+//   Idle／Talk：左手單手握篙，篙沿左手的篙軸方向；Row／PoleRest：雙手握篙，篙穿過兩手的握篙點。
+export async function makeBoatman(opts = {}, waitMs = 8000) {
+  const root = await makeCharacter('boatman', opts, waitMs);
+  const ud = root.userData;
+  if (!ud.actions) return root;                   // 載不到模型：程式人物（由 river.js 自行加上竹篙）
+  const ex = ud.gltf.asset?.extras || {};
+  const bone = name => ud.body.getObjectByName(THREE.PropertyBinding.sanitizeNodeName('mixamorig:' + name));
+  const hands = { Left: bone('LeftHand'), Right: bone('RightHand') };
+  const grip = { Left: new THREE.Vector3(...(ex.grip?.Left || [0.02, -0.05, 0])), Right: new THREE.Vector3(...(ex.grip?.Right || [-0.02, -0.05, 0])) };
+  const axisL = new THREE.Vector3(...(ex.poleAxis?.Left || [0, 0, 1]));
+  const rowPeriod = ex.rowPeriod || 2 * Math.PI / 1.6;
+
+  // 竹篙：與舊版相同的竹節外觀，長約 3.6 米
+  const pole = new THREE.Group();
+  const lam = c => new THREE.MeshLambertMaterial({ color: c });
+  pole.add(new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 1, 7), lam('#9c8a55')));
+  for (let i = 1; i < 9; i++) { const n = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.031, 0.018, 7), lam('#7a6a3c')); n.position.y = -0.5 + i / 9; pole.add(n); }
+  pole.traverse(o => { o.raycast = () => {}; });
+  root.add(pole);
+
+  const pL = new THREE.Vector3(), pR = new THREE.Vector3(), dir = new THREE.Vector3(), top = new THREE.Vector3(), bot = new THREE.Vector3();
+  const q = new THREE.Quaternion(), qRoot = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0);
+  function placePole() {
+    root.updateMatrixWorld(true);
+    root.getWorldQuaternion(qRoot).invert();
+    root.worldToLocal(hands.Left.localToWorld(pL.copy(grip.Left)));
+    const two = ud.idleClip() === 'Row' || ud.idleClip() === 'PoleRest';
+    if (two) {
+      root.worldToLocal(hands.Right.localToWorld(pR.copy(grip.Right)));
+      dir.subVectors(pL, pR);
+      const gap = dir.length(); dir.divideScalar(gap || 1);
+      bot.copy(pR).addScaledVector(dir, -2.2); top.copy(pL).addScaledVector(dir, 1.2);
+    } else {
+      hands.Left.getWorldQuaternion(q);
+      dir.copy(axisL).applyQuaternion(q).applyQuaternion(qRoot).normalize();
+      bot.copy(pL).addScaledVector(dir, -2.1); top.copy(pL).addScaledVector(dir, 1.5);
+    }
+    const len = top.distanceTo(bot);
+    pole.position.addVectors(top, bot).multiplyScalar(0.5);
+    pole.quaternion.setFromUnitVectors(Y, dir);
+    pole.scale.set(1, len, 1);
+    pole.children.forEach((c, i) => { if (i) c.scale.set(1, 1 / len, 1); });
+  }
+  const look = ud.updateLook;
+  ud.updateLook = (target, dt) => { look(target, dt); placePole(); };
+  // 撐船節奏：0 = 下篙入水（雙手較高、篙較直），約 0.58 推到盡頭
+  ud.rowPhase = () => ((ud.actions.Row?.time || 0) / rowPeriod) % 1;
+  ud.pole = pole;
+  placePole();
   return root;
 }

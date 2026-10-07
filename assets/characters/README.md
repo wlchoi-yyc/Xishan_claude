@@ -102,3 +102,32 @@ python3 tools/servant-model/build_servant.py 原始Tripo模型.glb assets/charac
 ```
 python3 tools/servant-model/build_young.py 原始Tripo模型.glb assets/characters/young-servant.glb
 ```
+
+# 船家（boatman.glb）
+
+第四關湘江渡口的船家，戴斗笠、披蓑衣。原始 Tripo 模型（`villager character 3d model.glb`，16MB，A 字姿勢）沒有骨架，由 `tools/servant-model/build_boatman.py` 自動綁骨（與兩位僕人同一方法），約 2.3MB：
+
+- **骨架**：Mixamo 式骨架，另加四指各三節、拇指兩節（原模型手指分開），雙手可以圍着竹篙屈曲握緊。
+- **蒙皮**：斗笠是獨立網格，整頂跟頭；蓑衣與身體、袖子連成一片，按顏色和位置分區。蓑衣整件跟上背，但兩側（手臂上方）部分跟上臂：手臂向前伸時草衣被帶起，袖子不會穿出；前襟中間和背後不動。蓑衣內側與袖子上緣在網格上相連，靠近袖子（3 厘米內）的部分逐漸改跟袖子，否則手臂前伸時會拉出一條條長三角形。
+- **口部**：臉部網格很疏、沒有口縫，形變目標 `MouthOpen` 把唇線以下到下巴平滑地向下移（約 7 毫米），原有的唇色隨之拉闊；只按位置計算，貼圖接縫兩邊移動一致，不會撕裂。說話（`E.speaker === '船家'`）時張合。
+- 去掉原檔的高光擴充，貼圖壓縮為 2048／1024 JPEG。三萬七千個三角形。
+
+## 動作與竹篙
+
+| 動作 | 用途 |
+|---|---|
+| Idle | 站立等客：左手握着插在水中的竹篙（篙在船外一側，離船舷約 9 厘米），右手自然垂下；輕微呼吸 |
+| Talk | Idle 加輕微點頭 |
+| Row | 撐船：面向江面，竹篙斜放身前，篙頂在左上、篙底斜向船尾。下篙 → 上身略向右、前傾推篙 → 收篙，約 3.9 秒一篙（與原有撐船節奏相同） |
+| PoleRest | 渡江後雙手握篙站着（Row 的第一個姿勢加呼吸） |
+
+蓑衣下手臂很短，雙手越過身體中線便會穿出草衣，所以撐船時船家面向船外、雙手各在自己一側握篙。`build_boatman.py` 以蓑衣內側的形狀限制手臂姿勢（`solve_arm`），每個撐船關鍵姿勢先定出竹篙的直線，雙手沿篙滑到最容易握的位置（`grip_on_line`），並檢查竹篙不會藏進蓑衣、在船舷高度離船家 0.65 米以上（船舷在 0.43 米）。
+
+竹篙不在模型內：`js/servant-character.js` 的 `makeBoatman()` 每格按手骨的位置擺放竹篙（握篙點與篙軸記錄在 GLB 的 `asset.extras`）：Idle／Talk 沿左手的篙軸，Row／PoleRest 穿過兩手的握篙點，所以竹篙一定握在手中。
+
+遊戲中（`js/chapters/river.js`）：船家先面向碼頭，玩家點擊後轉頭望着玩家說話；上船時他不轉身（竹篙在船外，轉身會掃過船艙），玩家走到船頭面向前方後，才轉身面向江面開始撐船（`setIdle('Row')`），渡江後改為 PoleRest。載不到模型時沿用程式繪製的船家和舊竹篙。
+
+```
+python3 tools/servant-model/build_boatman.py 原始Tripo模型.glb assets/characters/boatman.glb
+POSE_ONLY=1 python3 tools/servant-model/build_boatman.py 原始Tripo模型.glb /dev/null   # 只檢查撐船姿勢
+```

@@ -72,6 +72,7 @@ js/engine.js          渲染、第一人稱鏡頭、移動、點擊互動、補�
 js/world.js           地形、樹木、器物等程序化建模
 js/people.js          人物造型（參數曲面雕塑的頭臉、手指、交領右衽袍、衣褶陰影）
 js/liu-character.js   柳宗元立體模型（assets/characters/liu-zongyuan.glb）的動作與劇情手勢
+js/servant-character.js  老僕、年輕僕人、船家的立體模型（old-servant.glb、young-servant.glb、boatman.glb）；船家的竹篙按手的位置擺放
 tools/people-preview.html  開發用：人物造型預覽（?view=lineup|faces|face&p=liu|poses|walk|back）
 js/ui.js              對話、原文字幕、心境、日誌、地圖、各種解謎介面
 js/audio.js           程序化聲音（風、水、鳥、古琴式撥弦音樂）＋背景音樂檔播放
