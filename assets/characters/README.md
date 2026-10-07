@@ -90,7 +90,7 @@ python3 tools/servant-model/build_servant.py 原始Tripo模型.glb assets/charac
 - 上衣下襬、腰帶垂下的帶子與褲頭在同一高度：以顏色貼圖分辨（褲子較深）。褲子跟大腿；上衣和帶子跟盆骨，只有前襟下緣部分跟大腿，坐下時搭在腿上。
 - 口部形變 `MouthOpen`（唇線 y=0.836）及貼圖上的唇縫。
 
-動作（坐在地上）：右腿向前伸直、腳尖微微外翻；左膝屈起，左手按在左腳踝上方；右手撐在身後地上。
+動作（坐在地上）：右腿向前伸直、腳尖微微外翻；左膝屈起，左手按在左腳踝上方；右手與站立時一樣自然垂在身旁，稍屈手肘令手在地面之上約 1 厘米（舊版右手撐在身後地上，手腕向後折，看來像殘疾，已改正）。姿勢定義在 `tools/servant-model/young_pose.py`。
 
 | 動作 | 用途 |
 |---|---|
@@ -101,6 +101,12 @@ python3 tools/servant-model/build_servant.py 原始Tripo模型.glb assets/charac
 
 ```
 python3 tools/servant-model/build_young.py 原始Tripo模型.glb assets/characters/young-servant.glb
+```
+
+原始 Tripo 模型不在倉庫內：只改動作（`young_pose.py`）時，用以下指令直接更新遊戲中的 GLB（網格、蒙皮、口部形變、貼圖原封不動）：
+
+```
+python3 tools/servant-model/rebuild_young_anims.py assets/characters/young-servant.glb
 ```
 
 # 船家（boatman.glb）

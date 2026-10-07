@@ -8,7 +8,6 @@ from PIL import Image, ImageDraw
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'liu-model'))
 from glb import GLB
 import anims
-from anims import Pose, rx, ry, rz, sample, breathe, stand
 
 SRC, OUT = sys.argv[1], sys.argv[2]
 g = GLB(SRC); j = g.j
@@ -164,59 +163,11 @@ for n, i in JI.items(): ibm[i][:3, 3] = -JP[n]
 dom = Jt[np.arange(len(Jt)), Wt.argmax(1)]
 rig.skin = dict(P=P, J=Jt.astype(np.int32), W=Wt, ibm=ibm, joints=NAMES, robe=np.where(skirt)[0],
                 hand={s: np.where(np.isin(dom, [JI[f'{s}Hand']]))[0] for s in ('Left', 'Right')})
-# 坐在草地上：右腿向前伸直，左膝屈起（扭傷的左腳踝在身前），左手按在左腳踝上，右手撐在身後地上。
-from anims import hinge, reach, curl, orient_hand
-S = Pose(rig)
-GROUND_HIPS = 0.105                       # 盆骨離地高度（臀部厚度）
-S.move(0, GROUND_HIPS - JP['Hips'][1], 0.0)
-S.r('Spine', rx(-4)); S.r('Spine1', rx(6)); S.r('Spine2', rx(5)); S.r('Neck', rx(-4)); S.r('Head', rx(-6))
-def foot_at(p, side):
-    o = rig.fk(p, [f'{side}Foot', f'{side}ToeBase', f'{side}Toe_End']); return o[f'{side}Foot'][0], o[f'{side}Toe_End'][0]
-# 右腿伸直（膝微曲），腳跟着地、腳尖向上
-best = None
-for th in range(-96, -78, 2):
-    for kn in range(-16, 1, 2):
-        q = S.copy(); q.set('RightUpLeg', rx(th), ry(-4)); q.set('RightLeg', hinge(rig, 'RightLeg', kn))
-        a_, _ = foot_at(q, 'Right'); c = abs(a_[1] - 0.06) + 0.2 * abs(kn + 6)
-        if best is None or c < best[0]: best = (c, th, kn)
-S.set('RightUpLeg', rx(best[1]), ry(-4)); S.set('RightLeg', hinge(rig, 'RightLeg', best[2])); S.set('RightFoot', rx(-30), ry(-12))   # 腳尖自然向上微微外翻
-# 左膝屈起，腳掌平放在地上（腳踝離地約 0.075、在身前約 0.24）
-best = None
-for th in range(-150, -100, 2):
-    for kn in range(-150, -90, 2):
-        q = S.copy(); q.set('LeftUpLeg', rx(th), ry(6), rz(-6)); q.set('LeftLeg', hinge(rig, 'LeftLeg', kn))
-        a_, _ = foot_at(q, 'Left'); c = abs(a_[1] - 0.075) + abs(a_[2] - 0.24)
-        if best is None or c < best[0]: best = (c, th, kn)
-S.set('LeftUpLeg', rx(best[1]), ry(6), rz(-6)); S.set('LeftLeg', hinge(rig, 'LeftLeg', best[2]))
-bestf = None
-for ang in range(-80, 81, 2):   # 腳掌放平：腳尖與腳踝同高（減去腳掌厚度）
-    q = S.copy(); q.set('LeftFoot', rx(ang)); o = rig.fk(q, ['LeftFoot', 'LeftToe_End'])
-    d_ = abs(o['LeftToe_End'][0][1] - 0.02)
-    if bestf is None or d_ < bestf[0]: bestf = (d_, ang)
-S.set('LeftFoot', rx(bestf[1]))
-print('legs: left thigh/knee', best, 'left foot', bestf)
-o = rig.fk(S, ['LeftFoot', 'LeftLeg', 'RightFoot'])
-print('left ankle', np.round(o['LeftFoot'][0], 3), 'left knee', np.round(o['LeftLeg'][0], 3), 'right ankle', np.round(o['RightFoot'][0], 3))
-# 左手按在左腳踝上方（小腿外側），右手撐在身後右方地上
-ank = o['LeftFoot'][0]; knee = o['LeftLeg'][0]
-lt = ank + (knee - ank) * 0.22 + np.array([0.045, 0.02, 0.0])
-print('left hand', reach(S, 'Left', lt, {0: 0, 3: 0}))
-d_ = knee - ank; d_ /= np.linalg.norm(d_)
-orient_hand(S, 'Left', -d_ + np.array([-0.4, 0, 0.2]), [-1, -0.2, 0]); curl(S, 'Left', 22)
-print('right hand', reach(S, 'Right', np.array([-0.2, 0.06, -0.13]), {0: 0, 3: 0}))
-orient_hand(S, 'Right', [-0.25, -0.15, -1], [0, -1, 0]); curl(S, 'Right', 10)
-def rub(p, t):     # 輕輕揉腳踝：前臂微微前後移動
-    w = np.sin(2 * np.pi * t / 1.4)
-    p.r('LeftForeArm', hinge(rig, 'LeftForeArm', 3.5 * w)); p.r('LeftHand', rx(4 * w))
-def both(*fs):
-    def f(p, t):
-        for g_ in fs: g_(p, t)
-    return f
-clips = {
-    'Idle': sample(rig, [(0, S), (4.2, S)], fx=both(breathe(0.7, 4.2, 0), rub)),
-    'Talk': sample(rig, [(0, S), (4.0, S)], fx=breathe(0.7, 4, 1.4)),   # 說話時停手、輕輕點頭
-}
-clips['SeatedIdle'] = clips['Idle']; clips['SeatedTalk'] = clips['Talk']
+# 坐地姿勢與動作在 young_pose.py（rebuild_young_anims.py 亦用同一份）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from young_pose import young_clips
+body_idx = np.where(~arm & ~head)[0]
+clips = young_clips(rig, JP, body_idx)
 
 # ---------------- 5. 輸出 ----------------
 out_bin = bytearray(); bviews = []; accs = []

@@ -1,6 +1,6 @@
 // 自建骨架的 Tripo 人物（tools/servant-model）。動作已烘焙在 GLB 內，說話時以形變目標 MouthOpen 張合口部。
 //   老僕（序章）：old-servant.glb，Idle Talk Bow；雙手垂在身旁，所有動作都不移動手臂。
-//   年輕僕人（第三關，法華寺外）：young-servant.glb，坐在草地上；Idle 輕揉腳踝，Talk 停手、輕輕點頭。
+//   年輕僕人（第三關，法華寺外）：young-servant.glb，坐在草地上、右手自然垂在身旁；Idle 輕揉腳踝，Talk 停手、輕輕點頭。
 //   船家（第四關，湘江渡口）：boatman.glb，戴斗笠、披蓑衣；Idle／Talk 左手握着插在水中的竹篙，
 //     Row 面向船外雙手撐篙，PoleRest 撐船後雙手握篙站着。竹篙由 makeBoatman() 按手的位置每格擺放。
 import { THREE, E } from './engine.js';
