@@ -27,5 +27,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Prepare automatic game updates
+        run: |
+          node .update-tools/test-auto-update.cjs
+          python3 .update-tools/prepare-release.py
       - name: Deploy only the Xishan Claude site
         run: npx --yes firebase-tools@15.31.0 deploy --only hosting --project mulan-journey --non-interactive

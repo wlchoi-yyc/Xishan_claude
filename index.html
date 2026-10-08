@@ -2,6 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
+<meta name="xishan-release" content="__XISHAN_RELEASE__">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>始得西山宴遊記：尋找柳宗元</title>
 <meta name="description" content="以柳宗元《始得西山宴遊記》為文本依據的第一人稱立體解謎遊戲。">
@@ -117,5 +118,6 @@ document.getElementById('btnHome').addEventListener('click', function () {
 if (/[?&]menu=1/.test(location.search)) { var tm = document.getElementById('teacherMenu'); if (tm) tm.open = true; }
 </script>
 <script type="module" src="auth.js"></script>
+<script defer src="auto-update.js?v=__XISHAN_RELEASE__"></script>
 </body>
 </html>
