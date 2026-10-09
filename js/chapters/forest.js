@@ -1,5 +1,6 @@
 import { makeLiuCharacter } from '../liu-character.js';
 import { makeBodyImprints } from '../body-imprints.js';
+import { makeSeatImprints } from '../grass-imprints.js';
 // 第一關：尋找舊足跡（永州山林）
 // 第二關：重建「平日遊山」（山林深處）
 import { E, THREE, ui, audio, enter, clue, watch, dist2D, until } from './common.js';
@@ -187,7 +188,7 @@ function buildForest() {
   }
 
   // 草地、溪邊蘆葦、雲、谷中薄霧、怪石間的石筍
-  scene.add(makeGrassField({ count: 3200, area: { x0: -115, x1: 115, z0: -115, z1: 115 }, heightAt: forestHeight, accept: (x, z) => distToPolyline(x, z, CREEK) > 2.5 && Math.hypot(x - ZONES.spring.x, z - ZONES.spring.z) > 8, seed: 5 }));
+  scene.add(makeGrassField({ count: 3200, area: { x0: -115, x1: 115, z0: -115, z1: 115 }, heightAt: forestHeight, accept: (x, z) => distToPolyline(x, z, CREEK) > 2.5 && Math.hypot(x - ZONES.spring.x, z - ZONES.spring.z) > 8 && Math.hypot(x - ZONES.forest.x, z - ZONES.forest.z) > 2, seed: 5 }));
   const reeds = [];
   pathPoints(CREEK, 5).forEach((p, i) => { const side = i % 2 ? 2.6 : -2.6; reeds.push({ type: 'reed', x: p.x + side, z: p.z + (rr() - 0.5) * 2, s: 0.6 + rr() * 0.4, rot: rr() * 6 }); });
   scene.add(makeTrees(reeds, forestHeight));
@@ -232,6 +233,15 @@ function onBank(p, minD = 4.2) {
   return { x, z };
 }
 function place(obj, x, z, h, lift = 0) { obj.position.set(x, h(x, z) + lift, z); return obj; }
+// 貼合實際地形網格的高度（比高度函數準確，貼地的東西不會陷進地面或浮起）
+function groundSampler(world, H) {
+  const ray = new THREE.Raycaster(), down = new THREE.Vector3(0, -1, 0), from = new THREE.Vector3();
+  return (x, z) => {
+    ray.set(from.set(x, 200, z), down);
+    const hit = ray.intersectObjects(world.walkables || [], false)[0];
+    return hit ? hit.point.y : H(x, z);
+  };
+}
 
 export async function chapter1() {
   audio.ambience({ wind: 0.35, water: 0.25, waterFreq: 1100, birds: 0.7 });
@@ -283,7 +293,8 @@ export async function chapter1() {
   })();
 
   // --- 深林：壓倒的草 ---
-  const pressed = place(makeGrassPatch(26, 1.3, { pressed: true, color: '#8f9a55', seed: 31 }), ZONES.forest.x, ZONES.forest.z, H, 0.02);
+  // 幾個人圍坐過的草地：草已經重新立起了一半
+  const pressed = makeSeatImprints(groundSampler(world, H), ZONES.forest.x, ZONES.forest.z, { recover: 0.6, seed: 31, radius: 2.9 });
   scene.add(pressed);
   const forestClue = clue(pressed, '深林中的草地', async () => {
     await ui.say('', '密林深處，一片草被壓倒了，形狀像有幾個人曾經坐在這裏。');
@@ -420,7 +431,9 @@ export async function chapter2() {
   unfreeze();
 
   // 1 被壓倒的草
-  const grass = place(makeGrassPatch(30, 1.6, { pressed: true, seed: 71, color: '#97a55a' }), -3, 2, H, 0.02); scene.add(grass);
+  // 撥開草走進來，就地圍坐：草剛被壓平，還未立起
+  const grass = makeSeatImprints(groundSampler(world, H), -3, 2, { recover: 0.12, seed: 71, radius: 2.7, trail: 2.6, seats: [{ a: 0.2, r: 0.95 }, { a: 2.0, r: 1.0 }, { a: 4.1, r: 0.95 }] });
+  scene.add(grass);
   // 2 酒壺
   const pot = place(makeWinePot('#7a8a70'), 3, -0.6, H, 0.1); pot.rotation.z = 1.4; scene.add(pot);
   // 3 枕在一起的痕跡：兩個人形壓痕，頭挨着頭（人形內的草被壓平，四周的草仍直立）

@@ -37,7 +37,7 @@ function makeThornBush(seed) {
   return m;
 }
 function makeThatch(seed) {
-  const g = makeGrassPatch(30, 1.1, { seed, color: '#c4a960', height: 1.9 });
+  const g = makeGrassPatch(30, 1.1, { seed, color: '#c4a960', height: 1.9, cones: true });
   g.material = vcMat();
   return g;
 }
@@ -163,7 +163,7 @@ export async function chapter5() {
   const cutPile = makeThornBush(90); cutPile.scale.set(0.5, 0.25, 0.5); cutPile.rotation.z = 1.2; cutPile.position.set(-5, H(-5, 3.6) + 0.3, 3.6); scene.add(cutPile);
   const burnt = new THREE.Mesh(new THREE.CircleGeometry(1.1, 12), new THREE.MeshBasicMaterial({ color: '#1f1b17', transparent: true, opacity: 0.85, depthWrite: false }));
   burnt.rotation.x = -Math.PI / 2; burnt.position.set(-4, H(-4, 0.6) + 0.05, 0.6); scene.add(burnt);
-  const stubble = makeGrassPatch(14, 0.9, { seed: 5, color: '#2c2621', height: 0.25 }); stubble.position.copy(burnt.position); scene.add(stubble);
+  const stubble = makeGrassPatch(14, 0.9, { seed: 5, color: '#2c2621', height: 0.25, cones: true }); stubble.position.copy(burnt.position); scene.add(stubble);
   const smoke = makeSmoke(); smoke.position.copy(burnt.position); scene.add(smoke);
 
   await Promise.all([

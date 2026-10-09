@@ -408,6 +408,89 @@ export function applyWind(m, amp = 0.004, floor = true) {
   m.customProgramCacheKey = () => 'wind-' + amp + (floor ? 'f' : '') + (m.map ? 'm' : '');
   return m;
 }
+// 草葉材質：葉片幾何自帶 aH（葉片內離地高度），按這個高度擺動，所以貼地、壓平的葉子不會亂擺；
+// 雙面三角形已在幾何中，法線偏向天空，葉子正反兩面受光一致，不會一面黑一面亮。
+const _bladeMats = {};
+export function bladeMat(amp = 0.1) {
+  const key = String(amp);
+  if (_bladeMats[key]) return _bladeMats[key];
+  const m = new THREE.MeshLambertMaterial({ vertexColors: true });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.wTime = WATER_U.wTime;
+    sh.uniforms.windAmp = { value: amp };
+    sh.vertexShader = 'uniform float wTime;\nuniform float windAmp;\nattribute float aH;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      {
+        #ifdef USE_INSTANCING
+          vec3 wip = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+        #else
+          vec3 wip = (modelMatrix * vec4(transformed, 1.0)).xyz;
+        #endif
+        float wph = wip.x * 0.071 + wip.z * 0.053;
+        float wsw = sin(wTime * 1.25 + wph) * 0.65 + sin(wTime * 2.9 + wph * 1.7) * 0.25 + sin(wTime * 0.4 + wph * 0.3) * 0.35;
+        float wh = max(aH, 0.0);
+        transformed.x += wsw * windAmp * wh * wh;
+        transformed.z += wsw * 0.45 * windAmp * wh * wh;
+      }`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>',
+      '#if NUM_HEMI_LIGHTS > 0\n outgoingLight = max(outgoingLight, diffuseColor.rgb * hemisphereLights[0].skyColor * 0.32);\n#endif\n#include <opaque_fragment>');
+  };
+  m.customProgramCacheKey = () => 'blade-' + amp;
+  return (_bladeMats[key] = m);
+}
+/**
+ * 一片草葉（寫入 out 陣列，最後用 bladeGeometry 組成網格）。
+ * 葉片由基部 (x,y,z) 生出：先向 yaw 方向傾 lean（0 = 直立，π/2 = 平躺），
+ * 再沿長度逐漸彎下 bend（負數 = 葉尖向上翹起）。寬度由基部漸收到葉尖；顏色由基部深到葉尖淺。
+ */
+export function addBlade(out, { x = 0, y = 0, z = 0, yaw = 0, lean = 0, bend = 0.5, len = 0.4, width = 0.02, seg = 3, base = '#4b5a2c', tip = '#a3ad62', twist = 0 }) {
+  const dx = Math.sin(yaw), dz = Math.cos(yaw);
+  const sx = Math.cos(yaw + twist), sz = -Math.sin(yaw + twist);
+  const cb = new THREE.Color(base), ct = new THREE.Color(tip);
+  const pts = [];
+  let px = x, py = y, pz = z;
+  for (let i = 0; i <= seg; i++) {
+    const t = i / seg;
+    const w = width * Math.pow(1 - t, 0.85) * (i === seg ? 0 : 1);
+    pts.push({ px, py, pz, w, t, h: py - y });
+    if (i < seg) {
+      const a = lean + bend * Math.pow((i + 0.5) / seg, 1.4), step = len / seg;
+      px += Math.sin(a) * dx * step; pz += Math.sin(a) * dz * step; py += Math.cos(a) * step;
+    }
+  }
+  // 法線：葉面法線與「向上」混合，令葉片受光柔和
+  const tx = pts[seg].px - pts[0].px, ty = pts[seg].py - pts[0].py, tz = pts[seg].pz - pts[0].pz;
+  let nx = -sz * ty, ny = sz * tx - sx * tz, nz = sx * ty;   // 葉寬方向 × 葉長方向
+  const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+  if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
+  nx *= 0.45; nz *= 0.45; ny = ny * 0.45 + 0.75;
+  const nn = Math.hypot(nx, ny, nz); nx /= nn; ny /= nn; nz /= nn;
+  const L = (p, side) => [p.px + sx * p.w * side, p.py, p.pz + sz * p.w * side];
+  const C = (t) => { const c = cb.clone().lerp(ct, Math.pow(t, 0.8)); return [c.r, c.g, c.b]; };
+  const tri = (a, b, c, ha, hb, hc, ca, cbb, cc) => {
+    // 正反兩面
+    out.pos.push(...a, ...b, ...c, ...a, ...c, ...b);
+    for (let k = 0; k < 6; k++) out.nor.push(nx, ny, nz);
+    out.col.push(...ca, ...cbb, ...cc, ...ca, ...cc, ...cbb);
+    out.h.push(ha, hb, hc, ha, hc, hb);
+  };
+  for (let i = 0; i < seg; i++) {
+    const p0 = pts[i], p1 = pts[i + 1];
+    const a0 = L(p0, -1), b0 = L(p0, 1), a1 = L(p1, -1), b1 = L(p1, 1);
+    const c0 = C(p0.t), c1 = C(p1.t);
+    tri(a0, b0, b1, p0.h, p0.h, p1.h, c0, c0, c1);
+    if (i < seg - 1) tri(a0, b1, a1, p0.h, p1.h, p1.h, c0, c1, c1);
+  }
+}
+export const bladeBuffer = () => ({ pos: [], nor: [], col: [], h: [] });
+export function bladeGeometry(out) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(out.pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(out.nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(out.col, 3));
+  g.setAttribute('aH', new THREE.Float32BufferAttribute(out.h, 1));
+  g.computeBoundingSphere();
+  return g;
+}
 export function windMat(amp = 0.004) {
   const key = String(amp);
   if (_windMats[key]) return _windMats[key];
@@ -474,8 +557,25 @@ export function makeRock(size = 1, color = '#8a867b', seed = 1, detail = 0) {
 }
 
 // ---------------- 草 ----------------
-export function makeGrassPatch(n = 12, radius = 0.8, { color = '#8c9a55', height = 0.7, seed = 3, pressed = false } = {}) {
+export function makeGrassPatch(n = 12, radius = 0.8, { color = '#8c9a55', height = 0.7, seed = 3, pressed = false, cones = false } = {}) {
   const r = rng(seed);
+  if (!pressed && !cones) {
+    // 一簇簇細長、帶弧度的草葉（基部深、葉尖淺），代替舊的三稜錐
+    const out = bladeBuffer(), c0 = new THREE.Color(color);
+    for (let i = 0; i < n; i++) {
+      const a = r() * Math.PI * 2, d = Math.sqrt(r()) * radius;
+      const cx = Math.cos(a) * d, cz = Math.sin(a) * d, h = height * (0.6 + r() * 0.6);
+      const tint = c0.clone().offsetHSL((r() - .5) * 0.04, 0, (r() - .5) * 0.08);
+      for (let k = 0; k < 3; k++) {
+        addBlade(out, {
+          x: cx + (r() - 0.5) * 0.06, z: cz + (r() - 0.5) * 0.06, yaw: r() * Math.PI * 2,
+          lean: 0.1 + r() * 0.35, bend: 0.3 + r() * 0.7, len: h * (0.75 + r() * 0.4), width: 0.018 + r() * 0.01, seg: 2,
+          base: '#' + tint.clone().multiplyScalar(0.55).getHexString(), tip: '#' + tint.clone().offsetHSL(0, 0, 0.08).getHexString(), twist: (r() - 0.5) * 0.6,
+        });
+      }
+    }
+    return new THREE.Mesh(bladeGeometry(out), bladeMat(0.1));
+  }
   const parts = [];
   for (let i = 0; i < n; i++) {
     const a = r() * Math.PI * 2, d = Math.sqrt(r()) * radius;

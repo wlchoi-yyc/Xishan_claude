@@ -1,6 +1,6 @@
 // 山水點景：雲、霧、草地、石峰、斷崖台地
 import { THREE } from './engine.js';
-import { rng, noise2, mergeColored, mat, vcMat, smoothstep, windMat } from './world.js';
+import { rng, noise2, mergeColored, mat, vcMat, smoothstep, windMat, bladeMat, addBlade, bladeBuffer, bladeGeometry } from './world.js';
 
 // ---------------- 貼圖 ----------------
 let _cloudTex = null, _mistTex = null;
@@ -86,14 +86,21 @@ export function makeMist({ count = 20, center = [0, 0], rMin = 0, rMax = 300, y 
 
 // ---------------- 草地 ----------------
 let _grassGeo = null;
+// 一叢草：七片細長、帶弧度的草葉，由叢心向外散開、葉尖自然垂下；基部深、葉尖淺（秋天葉尖略帶枯黃）。
+// 每片只有兩節，三角形數目與舊版的三稜錐草叢相同，不會加重負擔。
 function grassGeo() {
   if (_grassGeo) return _grassGeo;
-  const r = rng(3), parts = [];
+  const r = rng(3), out = bladeBuffer();
+  const tips = ['#93a253', '#a3ab5d', '#8a9a4c', '#b4ad68'];
   for (let i = 0; i < 7; i++) {
-    const a = r() * 6.28, d = r() * 0.18, h = 0.35 + r() * 0.35;
-    parts.push({ geo: new THREE.ConeGeometry(0.035, h, 3), color: i % 3 ? '#7f914b' : '#95a257', matrix: mat(Math.cos(a) * d, h / 2, Math.sin(a) * d, (r() - .5) * 0.6, r() * 3, (r() - .5) * 0.6) });
+    const a = r() * 6.28, d = r() * 0.07;
+    addBlade(out, {
+      x: Math.cos(a) * d, z: Math.sin(a) * d, yaw: a + (r() - 0.5) * 0.8,
+      lean: 0.08 + r() * 0.35, bend: 0.35 + r() * 0.7, len: 0.38 + r() * 0.38, width: 0.016 + r() * 0.008, seg: 2,
+      base: '#45542a', tip: tips[i % tips.length], twist: (r() - 0.5) * 0.6,
+    });
   }
-  _grassGeo = mergeColored(parts);
+  _grassGeo = bladeGeometry(out);
   return _grassGeo;
 }
 /** 大片草叢（InstancedMesh）。accept(x,z) 回傳 false 則跳過 */
@@ -109,7 +116,7 @@ export function makeGrassField({ count = 1500, area, heightAt, accept = () => tr
     if (!accept(x, z)) continue;
     pts.push([x, z]);
   }
-  const mesh = new THREE.InstancedMesh(grassGeo(), windMat(0.12), pts.length);
+  const mesh = new THREE.InstancedMesh(grassGeo(), bladeMat(0.12), pts.length);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color();
   pts.forEach(([x, z], i) => {
     const k = scale[0] + r() * (scale[1] - scale[0]);

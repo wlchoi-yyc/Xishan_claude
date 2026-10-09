@@ -86,6 +86,7 @@ export async function caption(text, { gloss = '', hold = 5, top } = {}) {
   capText.classList.remove('show');
   void capText.offsetWidth;
   capText.classList.add('show');
+  document.body.classList.add('captioning');   // 原文字幕出現時，暫時淡出左上角的目標、心境，免得文字疊在一起
   audio.bell();
   if (hold > 0) {
     await sleep(hold * 1000);
@@ -94,6 +95,7 @@ export async function caption(text, { gloss = '', hold = 5, top } = {}) {
 }
 export async function hideCaption() {
   capText.classList.remove('show');
+  document.body.classList.remove('captioning');
   await sleep(1600);
 }
 
@@ -173,6 +175,7 @@ export async function fadeHUD(out, dur = 2.5) {
 export function showDpad(on) {
   const touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   $('dpad').classList.toggle('hidden', !(on && touch));
+  document.body.classList.toggle('has-dpad', !!(on && touch));   // 對話框、低語字幕讓開左下角的方向鍵
   $('controlsHelp').classList.toggle('hidden', !on || touch);
 }
 

@@ -53,6 +53,9 @@ button { font-family: var(--serif); cursor: pointer; }
   opacity: 0; transition: opacity .3s;
 }
 .marker.near .mlabel, .marker.hint .mlabel { opacity: 1; }
+/* 幾個標記擠在一起時，名稱改放上方或暫時隱藏，免得文字疊在一起（走近或點擊時仍會出現） */
+.marker.labelAbove .mlabel { top: auto; bottom: 30px; }
+.marker.labelHidden .mlabel { opacity: 0 !important; }
 @keyframes pulse { 0%,100% { transform: scale(.85); opacity: .75; } 50% { transform: scale(1.15); opacity: 1; } }
 
 #tooltip {
@@ -86,6 +89,9 @@ button { font-family: var(--serif); cursor: pointer; }
   background: linear-gradient(90deg, rgba(20,17,14,.65), rgba(20,17,14,0));
   font-size: 15px; line-height: 1.5; text-shadow: 0 1px 2px #000;
 }
+#objective, #mood { transition: opacity .6s ease; }
+body.captioning #objective, body.captioning #mood, body.captioning #chapterTag { opacity: 0; pointer-events: none; }
+#chapterTag { transition: opacity .6s ease; }
 #objective.flash { animation: objflash 1.6s ease; }
 @keyframes objflash { 0% { background-color: rgba(227,181,98,.55); } 100% { background-color: transparent; } }
 .objTag { display: inline-block; font-size: 12px; color: var(--gold); margin-right: 8px; letter-spacing: 2px; }
@@ -104,7 +110,7 @@ button { font-family: var(--serif); cursor: pointer; }
 #hudButtons button.off { opacity: .5; text-decoration: line-through; }
 #hudButtons button.new { animation: newbtn 1s ease-in-out 4; border-color: var(--gold); }
 @keyframes newbtn { 50% { background: rgba(227,181,98,.6); } }
-#toolSlot { position: absolute; right: 14px; bottom: 18px; display: flex; align-items: center; gap: 8px; pointer-events: auto; height: auto; padding: 8px 14px; border-radius: 12px; }
+#toolSlot { position: absolute; right: 14px; bottom: 58px; display: flex; align-items: center; gap: 8px; pointer-events: auto; height: auto; padding: 8px 14px; border-radius: 12px; }
 #toolSlot button { border-radius: 8px; border: 1px solid rgba(243,234,215,.4); background: rgba(255,255,255,.08); color: var(--paper); padding: 6px 12px; font-size: 16px; }
 #toolSlot button.active { background: var(--seal); border-color: #ffb6a6; }
 
@@ -156,6 +162,10 @@ button { font-family: var(--serif); cursor: pointer; }
   background: rgba(61,95,88,.35); border: 1px solid rgba(127,179,160,.55); border-radius: 4px;
 }
 #dlgChoices button:hover { background: rgba(61,95,88,.8); }
+
+/* 觸控裝置：對話框避開左下角方向鍵（約 170px）和右下角「登出」（約 80px） */
+body.has-dpad #dialog { left: calc(50% + 45px); width: min(780px, calc(100vw - 250px)); }
+body.has-dpad #whisper { padding: 0 90px 0 180px; }
 
 /* ---------- 原文字幕 ---------- */
 #caption {
@@ -358,8 +368,19 @@ button { font-family: var(--serif); cursor: pointer; }
   #dlgText { font-size: 17px; line-height: 1.6; }
   #dlgChoices button { padding: 7px 12px; font-size: 16px; }
   #captionText { font-size: clamp(20px, 3vw, 30px); padding: 10px 20px; }
-  #caption { top: 14%; }
+  /* 橫放手機：字幕放在右上角按鈕之下 */
+  #caption { top: max(14%, 58px); }
   .ccName { font-size: 34px; }
+  /* 章節名稱移到右上角按鈕下面，不與按鈕或目標重疊 */
+  #chapterTag { left: auto; right: 16px; top: 58px; transform: none; font-size: 12px; letter-spacing: 2px; }
+  #toasts { top: 82px; }
+  #objective { top: 70px; font-size: 14px; max-width: min(420px, 52vw); }
+  #mood { padding: 4px 10px 4px 4px; }
+  #mood svg { width: 38px; height: 38px; }
+  #moodLabel { font-size: 15px; }
+  #hudButtons button { height: 36px; min-width: 48px; padding: 0 10px; font-size: 14px; }
+  #dpad { width: 132px; height: 132px; bottom: 12px; left: 12px; }
+  body.has-dpad #dialog { left: calc(50% + 40px); width: min(780px, calc(100vw - 236px)); }
 }
 @media (max-width: 640px) {
   #dlgText { font-size: 18px; }

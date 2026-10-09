@@ -410,8 +410,24 @@ function updateMarkers() {
     it.el.style.transform = `scale(${s})`;
     it.el.classList.toggle('near', dist < 9);
     it.el.classList.toggle('hint', !!it.hint);
+    if (dist < 9 || it.hint) shown.push({ it, x: (projV.x + 1) / 2 * w, y: (1 - projV.y) / 2 * h, s, dist });
   }
+  // 標記名稱互相避開：由最近的開始放，名稱放在標記下方；撞到已放好的名稱就改放上方，仍然撞到便暫時不顯示
+  shown.sort((a, b) => (b.it.hint - a.it.hint) || (a.dist - b.dist));
+  const boxes = [];
+  const hit = (b) => boxes.some(o => b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0);
+  for (const m of shown) {
+    const text = m.it.label || '', lw = (text.length * 15 + 10) * m.s, lh = 22 * m.s;
+    const below = { x0: m.x - lw / 2, x1: m.x + lw / 2, y0: m.y + 16 * m.s, y1: m.y + 16 * m.s + lh };
+    const above = { x0: below.x0, x1: below.x1, y0: m.y - 16 * m.s - lh, y1: m.y - 16 * m.s };
+    let place = !hit(below) ? 'below' : !hit(above) ? 'above' : 'none';
+    if (place === 'below') boxes.push(below); else if (place === 'above') boxes.push(above);
+    m.it.el.classList.toggle('labelAbove', place === 'above');
+    m.it.el.classList.toggle('labelHidden', place === 'none');
+  }
+  shown.length = 0;
 }
+const shown = [];
 let hoverTick = 0;
 function updateHover(dt) {
   hoverTick += dt;
