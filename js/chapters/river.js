@@ -8,7 +8,7 @@ import { makeClouds, makeMist, makeGrassField, makeFarRanges } from '../scenery.
 import { makeBoatman } from '../servant-character.js';
 
 const RIVER_HALF = 80;
-const CREEK = [{ x: -76, z: 16 }, { x: -110, z: 14 }, { x: -140, z: 22 }, { x: -175, z: 18 }, { x: -210, z: 28 }, { x: -250, z: 24 }, { x: -300, z: 36 }, { x: -380, z: 30 }];
+const CREEK = [{ x: -77, z: 16 }, { x: -110, z: 14 }, { x: -140, z: 22 }, { x: -175, z: 18 }, { x: -210, z: 28 }, { x: -250, z: 24 }, { x: -300, z: 36 }, { x: -380, z: 30 }];
 const WEST_HILL = { x: -760, z: 60, h: 250 };
 
 function distToPolyline(x, z, pts) {
@@ -31,9 +31,14 @@ function terrainH(x, z) {
   // 東岸山丘
   if (x > 200) h += smoothstep(200, 600, x) * 30;
   // 染溪
+  // （地形網格每格約 10 米，溪谷要挖得夠闊，網格才顯示得出來）
   if (x < -70) {
     const dc = distToPolyline(x, z, CREEK);
-    h -= 1.8 * (1 - smoothstep(1.5, 5, dc));
+    const valley = 1 - smoothstep(3, 13, dc);
+    h -= 1.8 * valley;
+    // 溪口：把江岸挖開一道緩緩傾斜的缺口，溪水由此平順地流入湘江，不會在江岸上「斷開」
+    const mouth = lerp(-0.7, 3.5, smoothstep(-80, -125, x));
+    h = lerp(h, Math.min(h, mouth), valley);
   }
   h += xishanShape(x, z, WEST_HILL.x, WEST_HILL.z, WEST_HILL.h);
   return h;
@@ -56,7 +61,22 @@ function buildRiver(boatman) {
   water.rotation.x = -Math.PI / 2; water.position.y = 0; waterize(water, { scale: 0.18, strength: 0.14, flow: [0, 0.45] }); scene.add(water);
   const wpos = water.geometry.attributes.position; const wbase = wpos.array.slice();
   // 染溪
-  const creek = makeRibbon(pathPoints(CREEK, 2), 3.4, terrainH, { color: '#9cc0c6', lift: 0.6, seg: 2 });
+  // 溪水水面：貼着實際地形網格（不是高度函數），兩岸取較高處，免得水被地面蓋住而一段段斷開；
+  // 由溪口向上游只升不降，最低不低於江面，所以和湘江連成一片
+  const ray = new THREE.Raycaster(), down = new THREE.Vector3(0, -1, 0), from = new THREE.Vector3();
+  terrain.updateMatrixWorld(true);
+  const meshY = (x, z) => { ray.set(from.set(x, 300, z), down); const hit = ray.intersectObject(terrain, false)[0]; return hit ? hit.point.y : terrainH(x, z); };
+  const creekPts = pathPoints(CREEK, 2);
+  let level = 0.04;
+  creekPts.forEach((p, i) => {
+    const q = creekPts[Math.min(creekPts.length - 1, i + 1)], r = creekPts[Math.max(0, i - 1)];
+    let dx = q.x - r.x, dz = q.z - r.z; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
+    let y = -Infinity;
+    for (const k of [-0.6, -0.3, 0, 0.3, 0.6]) y = Math.max(y, meshY(p.x - dz * 3.4 * k, p.z + dx * 3.4 * k));
+    level = Math.max(level, y + 0.12);
+    p.y = level;
+  });
+  const creek = makeRibbon(creekPts, 3.4, terrainH, { color: '#9cc0c6', lift: 0, seg: 2 });
   waterize(creek, { scale: 0.7, strength: 0.3, edge: true, flow: [-0.6, 0.2] });
   scene.add(creek);
 

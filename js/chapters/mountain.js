@@ -4,7 +4,7 @@ import { E, THREE, ui, audio, enter, clue, watch, until, addHitProxy } from './c
 import { addInteractable, removeInteractable, freeze, unfreeze, wait, lookAt, moveTo, turnTo, tween, setControls, lerp, raycastFrom, angleDiff } from '../engine.js';
 import {
   baseScene, makeTerrain, makeTrees, scatter, makeRock, makeGrassPatch, makeRibbon, makeFootprints, pathPoints, makeFire, makeSmoke, makeStaff,
-  mergeColored, mat, vcMat, fbm, noise2, rng, mixHex, smoothstep, lam,
+  mergeColored, mat, vcMat, fbm, noise2, rng, mixHex, smoothstep, lam, addBlade, bladeBuffer, bladeGeometry, bladeMat,
 } from '../world.js';
 import { waterize } from '../world.js';
 import { natureRock } from '../nature.js';
@@ -56,23 +56,86 @@ function makeTorch(lit = true) {
   return g;
 }
 
+// 山溝兩側石壁的岩石貼面：貼合地形的細網格，只在陡坡上顯示（平地透明），用第六關同一張岩石貼圖
+function gorgeSkin(scene, terrain) {
+  const pos = [], uv = [], col = [], idx = [];
+  const X0 = -52, X1 = 16, STEP = 0.7, TILE = 6;
+  for (const side of [-1, 1]) {
+    const base = pos.length / 3, xs = [], zs = [];
+    for (let x = X0; x <= X1 + 0.01; x += STEP) xs.push(x);
+    for (let a = 5.5; a <= 22 + 0.01; a += STEP) zs.push(a * side);
+    zs.forEach(z => xs.forEach(x => {
+      const h = Math.max(footH(x, z), terrain.userData.surfaceAt(x, z)), e = 0.3;   // 取實際網格與高度函數較高者，貼面不會陷進地面
+      const slope = Math.hypot(footH(x + e, z) - footH(x - e, z), footH(x, z + e) - footH(x, z - e)) / (2 * e);
+      pos.push(x, h + 0.06, z);
+      // 牆面主要朝向山溝（±z），所以用 x 和高度作貼圖座標
+      uv.push(x / TILE, h / TILE);
+      const t = fbm(x * 0.06, h * 0.06 + side * 5, 3, 81) * 0.5 + 0.5, k = 0.8 + t * 0.3;
+      col.push(k, k, k * 0.98, smoothstep(0.55, 1.0, slope));
+    }));
+    const W = xs.length;
+    for (let j = 0; j < zs.length - 1; j++) for (let i = 0; i < W - 1; i++) {
+      const a = base + j * W + i, b = a + 1, c = a + W, d = c + 1;
+      idx.push(a, b, c, b, d, c);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+  geo.setIndex(idx); geo.computeVertexNormals();
+  const m = new THREE.MeshLambertMaterial({ map: rockTexture(), vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 });
+  const mesh = new THREE.Mesh(geo, m); mesh.renderOrder = 1; scene.add(mesh);
+}
+
 function buildFoot() {
   const B = baseScene({ fog: '#d4d8cf', fogNear: 30, fogFar: 320, sky: { top: '#6d9bc6', sunDir: [-0.45, 0.46, 0.35], sunColor: '#ffeccc' }, hemi: ['#e2e8ea', '#5a5240', 1.05], sun: ['#ffe8c6', 1.9] });
   const { scene } = B;
   const terrain = makeTerrain({ size: 260, seg: 130, heightAt: footH, colorAt: footColor });
   scene.add(terrain);
   // 染溪源頭
-  const creek = makeRibbon(pathPoints([{ x: 3, z: 2 }, { x: 14, z: 5 }, { x: 30, z: 2 }, { x: 60, z: 8 }, { x: 100, z: 4 }], 2), 2.4, footH, { color: '#9cc0c6', lift: 0.15 });
+  // 染溪源頭的小水潭：地形網格太粗，挖不出圓潭。改為水面略高於潭內最高的地面，
+  // 四周一圈濕泥斜坡由地面升到水邊，再圍上卵石——水面看起來盛在潭裏，不會浮在坡上或被地面切成多邊形
+  const surf = (x, z) => Math.max(footH(x, z), terrain.userData.surfaceAt(x, z));
+  const PX = 3, PZ = 2, PR = 2.2;
+  let top = -Infinity;
+  for (let a = 0; a < 6.28; a += 0.3) for (let d = 0; d <= PR + 0.01; d += 0.3) top = Math.max(top, surf(PX + Math.cos(a) * d, PZ + Math.sin(a) * d));
+  const waterY = top + 0.05;
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(PR + 0.05, 32), new THREE.MeshPhongMaterial({ color: '#7fa9b2', shininess: 90 }));
+  pool.rotation.x = -Math.PI / 2; pool.position.set(PX, waterY, PZ); waterize(pool, { scale: 0.6, strength: 0.18 }); scene.add(pool);
+  const bank = new THREE.RingGeometry(PR - 0.1, PR + 0.9, 40, 3); bank.rotateX(-Math.PI / 2);
+  const bp = bank.attributes.position, bc = [];
+  for (let i = 0; i < bp.count; i++) {
+    const x = bp.getX(i) + PX, z = bp.getZ(i) + PZ, d = Math.hypot(bp.getX(i), bp.getZ(i));
+    const k = smoothstep(PR - 0.1, PR + 0.9, d);
+    bp.setXYZ(i, x, lerp(waterY + 0.01, surf(x, z) + 0.04, k), z);
+    const c = mixHex('#4f4836', '#6a6a44', k); bc.push(c.r, c.g, c.b, 1 - smoothstep(0.55, 1, k));
+  }
+  bank.setAttribute('color', new THREE.Float32BufferAttribute(bc, 4)); bank.computeVertexNormals();
+  const bankMesh = new THREE.Mesh(bank, new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+  bankMesh.renderOrder = 1; scene.add(bankMesh);
+  // 潭邊幾塊卵石
+  const pr = rng(91), pebbles = [];
+  for (let i = 0; i < 16; i++) {
+    const a = i / 16 * 6.28 + pr() * 0.3, d = PR + 0.05 + pr() * 0.4, x = PX + Math.cos(a) * d, z = PZ + Math.sin(a) * d, sz = 0.14 + pr() * 0.2;
+    if (Math.abs(a - 0.25) < 0.35) continue;   // 溪水流出的缺口
+    pebbles.push({ geo: new THREE.DodecahedronGeometry(sz, 0), color: mixHex('#8b8676', '#a7a08e', pr()), matrix: mat(x, Math.max(waterY, surf(x, z)) + sz * 0.15, z, pr() * 3, pr() * 3, 0, 1.2, 0.6, 1) });
+  }
+  scene.add(new THREE.Mesh(mergeColored(pebbles), vcMat()));
+  // 溪水由潭邊的缺口流出（不再從潭中央蓋在水面上）；貼着實際地面，起點與潭面同高
+  const creekPts = pathPoints([{ x: PX + 1.9, z: PZ + 0.6 }, { x: 14, z: 5 }, { x: 30, z: 2 }, { x: 60, z: 8 }, { x: 100, z: 4 }], 2);
+  creekPts.forEach((p, i) => { p.y = i === 0 ? waterY : Math.max(surf(p.x, p.z), surf(p.x, p.z + 1), surf(p.x, p.z - 1)) + 0.1; });
+  const creek = makeRibbon(creekPts, 2.4, footH, { color: '#9cc0c6', lift: 0 });
   waterize(creek, { scale: 0.8, strength: 0.3, edge: true, flow: [0.6, 0.1] });
   scene.add(creek);
-  const pool = new THREE.Mesh(new THREE.CircleGeometry(2.2, 16), new THREE.MeshPhongMaterial({ color: '#7fa9b2', shininess: 90 }));
-  pool.rotation.x = -Math.PI / 2; pool.position.set(3, footH(3, 2) + 0.12, 2); waterize(pool, { scale: 0.6, strength: 0.18 }); scene.add(pool);
   // 山溝兩側的石壁
   const rr = rng(33);
   for (let i = 0; i < 26; i++) {
     const side = i % 2 ? 1 : -1, x = 4 - rr() * 50, z = side * (7 + rr() * 3);
-    const rs = 1.5 + rr() * 2; const rock = natureRock(rs, '#8a8474', 200 + i) || makeRock(rs, '#8a8474', 200 + i); rock.position.set(x, footH(x, z) + 0.5, z); rock.scale.y = 1.4 + rr(); scene.add(rock);
+    // 石塊不再拉長（拉長會變成一條條尖長的多邊形），改為大小不一、半埋在山壁腳下
+    const rs = 1.3 + rr() * 2.2; const rock = natureRock(rs, '#8a8474', 200 + i) || makeRock(rs, '#8a8474', 200 + i); rock.position.set(x, footH(x, z) - rs * 0.15, z); rock.scale.y = 0.85 + rr() * 0.35; rock.rotation.y = rr() * 6.28; scene.add(rock);
   }
+  gorgeSkin(scene, terrain);
   const trees = scatter(260, 71, (x, z, r) => {
     if (Math.abs(z) < 12 && x < 8 && x > -60) return false;
     if (Math.abs(z) < 7) return false;
@@ -464,9 +527,109 @@ function slopeH(x, z) {
 function slopeColor(h, slope, x, z) {
   const n = noise2(x * 0.08, z * 0.08, 9) * 0.5 + 0.5;
   let c = mixHex('#55713d', '#6f8446', n);
+  // （近看的岩壁細節由 cliffSkin() 的貼圖負責；地形網格太疏，在這裏畫細紋會變成大三角形色塊）
   if (slope > 0.45) c = mixHex(c, mixHex('#8d8575', '#a39a88', n), smoothstep(0.45, 0.7, slope));
   if (x > 200) c = mixHex('#6c8a4a', '#88965a', n);
   return c;
+}
+// 岩壁貼面：沿着攀爬路線的山壁，蓋上一層貼合崖面的細網格，配上程式畫的岩石貼圖
+// （橫向岩層、豎直石縫、鏽色水痕、地衣和青苔）。左右兩旁漸漸透明，融入原本的山坡。
+function rockTexture() {
+  const N = 512, cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const g = cv.getContext('2d'), img = g.createImageData(N, N), d = img.data;
+  // 可無縫重複的雜訊
+  const P = 16, hash = (i, j, s) => { i = ((i % P) + P) % P; j = ((j % P) + P) % P; let h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(s + 7, 1442695041); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const vn = (x, y, s, f) => { x *= f; y *= f; const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+    const a = hash(ix % (P * f), iy % (P * f), s), b = hash((ix + 1) % (P * f), iy % (P * f), s), c = hash(ix % (P * f), (iy + 1) % (P * f), s), e = hash((ix + 1) % (P * f), (iy + 1) % (P * f), s);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + e) * u * v; };
+  const fb = (x, y, s) => (vn(x, y, s, 1) * 0.5 + vn(x, y, s + 1, 2) * 0.27 + vn(x, y, s + 2, 4) * 0.15 + vn(x, y, s + 3, 8) * 0.08);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const x = i / N * P, y = j / N * P;
+    const base = fb(x, y, 1);
+    // 岩層：沿 y 的橫紋，略為起伏
+    const warp = fb(x * 0.5, y * 0.5, 9) * 2.2;
+    const strata = Math.sin((y * 1.9 + warp) * Math.PI);
+    const seam = Math.pow(Math.max(0, 1 - Math.abs(strata) * 7), 2) * (0.35 + fb(x * 0.7, y * 0.2, 13) * 0.6);       // 岩層之間的暗縫
+    // 豎直石縫
+    const cr = Math.abs(fb(x * 1.0 + fb(x, y, 21) * 1.2, y * 0.12, 31) - 0.5);
+    const crack = Math.max(0, 1 - cr * 48) * (fb(x * 0.35, y * 0.35, 33) > 0.5 ? 1 : 0.15);   // 石縫疏落，只在部分地方出現
+    const rust = Math.max(0, fb(x * 0.6, y * 0.08, 41) - 0.58) * 3;        // 由上而下的鏽色水痕
+    const lichen = Math.max(0, fb(x * 3, y * 3, 51) - 0.66) * 4;
+    const moss = Math.max(0, fb(x * 1.4, y * 1.4, 61) - 0.6) * 3.5;
+    let r = 150 + base * 70 + strata * 10, gg = 142 + base * 66 + strata * 9, b = 124 + base * 58 + strata * 8;
+    r += rust * 40; gg += rust * 8; b -= rust * 25;
+    const dark = Math.min(1, seam * 0.4 + crack * 0.6);
+    r = r * (1 - dark) + 82 * dark; gg = gg * (1 - dark) + 74 * dark; b = b * (1 - dark) + 64 * dark;
+    const mo = Math.min(1, moss * (0.4 + dark));                                // 青苔多長在縫裏
+    r = r * (1 - mo) + 86 * mo; gg = gg * (1 - mo) + 112 * mo; b = b * (1 - mo) + 58 * mo;
+    const li = Math.min(0.7, lichen);
+    r = r * (1 - li) + 200 * li; gg = gg * (1 - li) + 204 * li; b = b * (1 - li) + 176 * li;
+    const o = (j * N + i) * 4; d[o] = r; d[o + 1] = gg; d[o + 2] = b; d[o + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+function cliffSkin(scene) {
+  const Z = 34, TILE = 7;             // 寬 ±34 米；貼圖每 7 米重複一次
+  const zs = [], ys = [];
+  for (let z = -Z; z <= Z + 0.01; z += 1) zs.push(z);
+  for (let y = 0.5; y <= 105; y += 0.9) ys.push(y);
+  const faceX = (y, z) => { let lo = cliffX(y) - 6, hi = cliffX(y) + 6; for (let i = 0; i < 22; i++) { const m = (lo + hi) / 2; if (slopeH(m, z) > y) lo = m; else hi = m; } return hi; };
+  const pos = [], uv = [], uv1 = [], col = [], idx = [];
+  ys.forEach(y => zs.forEach(z => {
+    pos.push(faceX(y, z) + 0.12, y, z);
+    // 大範圍的深淺、冷暖變化，令重複的貼圖不那麼明顯
+    const t = fbm(z * 0.06, y * 0.05, 3, 71) * 0.5 + 0.5, w = fbm(z * 0.04 + 9, y * 0.03, 2, 73) * 0.5 + 0.5;
+    const k = 0.78 + t * 0.32; col.push(k * (0.97 + w * 0.08), k, k * (1.03 - w * 0.08));
+    uv.push(z / TILE, y / TILE);
+    uv1.push((z + Z) / (2 * Z), 0.5);
+  }));
+  const W = zs.length;
+  for (let j = 0; j < ys.length - 1; j++) for (let i = 0; i < W - 1; i++) {
+    const a = j * W + i, b = a + 1, c = a + W, e = c + 1;
+    idx.push(a, b, c, b, e, c);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setAttribute('uv1', new THREE.Float32BufferAttribute(uv1, 2));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(idx); geo.computeVertexNormals();
+  // 左右兩邊淡出
+  const ac = document.createElement('canvas'); ac.width = 64; ac.height = 4;
+  const ag = ac.getContext('2d'), grd = ag.createLinearGradient(0, 0, 64, 0);
+  grd.addColorStop(0, '#000'); grd.addColorStop(0.22, '#fff'); grd.addColorStop(0.78, '#fff'); grd.addColorStop(1, '#000');
+  ag.fillStyle = grd; ag.fillRect(0, 0, 64, 4);
+  const alpha = new THREE.CanvasTexture(ac); alpha.channel = 1;
+  const m = new THREE.MeshLambertMaterial({ map: rockTexture(), alphaMap: alpha, vertexColors: true, transparent: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 });
+  const mesh = new THREE.Mesh(geo, m);
+  mesh.renderOrder = 1;
+  scene.add(mesh);
+}
+// 山壁上的點綴：石縫裏的小草和突出的石塊。都合成一個網格（共兩次繪製），
+// 而且避開攀爬路線兩旁 3 米，免得學生誤以為是落腳點。
+function cliffDecor(scene) {
+  const r = rng(77);
+  const faceX = (y, z) => { let lo = cliffX(y) - 4, hi = cliffX(y) + 4; for (let i = 0; i < 26; i++) { const m = (lo + hi) / 2; if (slopeH(m, z) > y) lo = m; else hi = m; } return hi; };
+  const out = bladeBuffer(), rocks = [];
+  for (let i = 0; i < 260; i++) {
+    const y = 3 + r() * 100, side = r() < 0.5 ? -1 : 1, z = side * (3.2 + r() * 14);
+    const x = faceX(y, z);
+    if (r() < 0.72) {
+      const n = 4 + Math.floor(r() * 6), tip = ['#93a253', '#a3ab5d', '#b4ad68', '#7f9548'][Math.floor(r() * 4)];
+      for (let k = 0; k < n; k++) addBlade(out, {
+        x: x + 0.05, y: y - 0.05, z: z + (r() - 0.5) * 0.4, yaw: Math.PI / 2 + (r() - 0.5) * 2.2,
+        lean: 0.35 + r() * 0.6, bend: 0.5 + r() * 0.8, len: 0.3 + r() * 0.35, width: 0.02 + r() * 0.01, seg: 2, base: '#3f4d26', tip,
+      });
+    } else {
+      const sz = 0.35 + r() * 0.7;
+      rocks.push({ geo: new THREE.DodecahedronGeometry(sz, 0), color: mixHex('#8a8273', '#a99f8b', r()), matrix: mat(x + sz * 0.15, y, z, r() * 3, r() * 3, r() * 3, 1.2, 0.7 + r() * 0.3, 1) });
+    }
+  }
+  scene.add(new THREE.Mesh(bladeGeometry(out), bladeMat(0.06)));
+  if (rocks.length) scene.add(new THREE.Mesh(mergeColored(rocks), vcMat()));
 }
 function makeHold(type, seed) {
   const g = new THREE.Group();
@@ -536,6 +699,10 @@ function buildSlope() {
     const p = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.1, 0.6, 7), lam('#8a8474'));
     p.position.set(L.x - 0.5, L.y - 0.3, L.z); scene.add(p);
   });
+  cliffSkin(scene);
+  cliffDecor(scene);
+  // 山壁朝東、背着太陽，只靠天光會變成一片暗褐：加一道柔和的補光，岩層和石縫才看得出來
+  const fill = new THREE.DirectionalLight('#fff0dc', 0.75); fill.position.set(200, 80, 40); scene.add(fill);
   const heightAt = (x, z) => {
     for (let i = LEDGES.length - 1; i >= 1; i--) { const L = LEDGES[i]; if (Math.hypot(x - L.x + 0.5, z - L.z) < 1.8) return L.y; }
     return slopeH(x, z);
