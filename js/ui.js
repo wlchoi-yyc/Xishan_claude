@@ -1,3 +1,4 @@
+import { delay as setTimeout, cancelDelay as clearTimeout } from './pause-timers.js';
 // 介面：對話、字幕、心境、日誌、地圖、各種解謎介面
 import { audio } from './audio.js';
 import { E } from './engine.js';
@@ -13,6 +14,7 @@ let advance = null;
 let typing = null; // { finish() }
 dlg.addEventListener('click', () => { if (advance) advance(); });
 window.addEventListener('keydown', e => {
+  if (E.paused) return;
   if ((e.code === 'Space' || e.code === 'Enter') && advance && !dlg.classList.contains('hidden')) { e.preventDefault(); advance(); }
 });
 
@@ -516,3 +518,4 @@ export function initButtons({ onHint }) {
   });
 }
 export function unlockButton(id) { const b = $(id); b.classList.remove('hidden'); b.classList.add('new'); }
+

@@ -1,7 +1,7 @@
 import { loadLiuCharacter } from './liu-character.js';
 import { loadServantCharacter, loadYoungServant, loadBoatman } from './servant-character.js';
 // 主程式：標題畫面、章節流程
-import { E, freeze } from './engine.js';
+import { E, freeze, setPaused } from './engine.js';
 import * as ui from './ui.js';
 import { audio } from './audio.js';
 import { prepState, S } from './chapters/common.js';
@@ -80,3 +80,30 @@ if (q.has('ch')) {
 // 標題背後的黑幕先淡開
 document.getElementById('fade').style.opacity = '1';
 window.__game = { E, ui };
+
+
+const pausePanel=document.getElementById('pausePanel');
+const resumeButton=document.getElementById('btnResume');
+const homeButton=document.getElementById('btnPauseHome');
+const logoutButton=document.getElementById('authLogout');
+let pausedElements=[],previousFocus=null;
+function openPause(){
+ previousFocus=document.activeElement;setPaused(true);audio.setPaused(true);
+ document.body.classList.add('game-paused');
+ pausedElements=[...document.getElementById('experience').children].filter(el=>el!==pausePanel).map(el=>[el,el.inert]);
+ pausedElements.forEach(([el])=>el.inert=true);
+ pausePanel.hidden=false;resumeButton.focus();
+}
+function closePause(){
+ pausePanel.hidden=true;pausedElements.forEach(([el,inert])=>el.inert=inert);pausedElements=[];
+ document.body.classList.remove('game-paused');setPaused(false);audio.setPaused(false);
+ if(previousFocus?.isConnected)previousFocus.focus();
+}
+document.getElementById('btnHome').addEventListener('click',openPause);
+resumeButton.addEventListener('click',closePause);
+homeButton.addEventListener('click',()=>{location.href=location.pathname+'?menu=1';});
+document.addEventListener('keydown',e=>{
+ if(pausePanel.hidden)return;
+ if(e.code==='Escape'){e.preventDefault();e.stopImmediatePropagation();closePause();}
+ if(e.code==='Tab'){e.preventDefault();const buttons=[resumeButton,homeButton,logoutButton];const i=buttons.indexOf(document.activeElement);buttons[(i+(e.shiftKey?2:1)+3)%3].focus();}
+},true);

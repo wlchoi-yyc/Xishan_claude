@@ -1,3 +1,4 @@
+import { pauseTimers } from './pause-timers.js';
 // 引擎：渲染、第一人稱鏡頭、移動、點擊互動、補間動畫
 import * as THREE from '../lib/three.module.js';
 import { createPost } from './post.js';
@@ -33,7 +34,7 @@ window.addEventListener('resize', () => {
 export const E = {
   THREE, renderer, camera, post,
   world: null,
-  time: 0,
+  time: 0, paused: false,
   player: {
     pos: new THREE.Vector3(), yaw: 0, pitch: 0,
     eye: 1.6, speed: 3.6, groundY: 0,
@@ -182,14 +183,14 @@ const keys = new Set();
 const dpadState = { f: 0, b: 0, l: 0, r: 0 };
 window.addEventListener('keydown', e => {
   if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
-  keys.add(e.code);
+  if(!E.paused) keys.add(e.code);
 });
 window.addEventListener('keyup', e => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());
 
 document.querySelectorAll('#dpad button').forEach(b => {
   const d = b.dataset.dir;
-  const on = e => { e.preventDefault(); dpadState[d] = 1; };
+  const on = e => { e.preventDefault(); if(!E.paused) dpadState[d] = 1; };
   const off = e => { e.preventDefault(); dpadState[d] = 0; };
   b.addEventListener('pointerdown', on);
   b.addEventListener('pointerup', off);
@@ -228,6 +229,7 @@ function pickInteractable(x, y) {
 }
 
 canvas.addEventListener('pointerdown', e => {
+  if(E.paused) return;
   pointer.down = true; pointer.id = e.pointerId;
   pointer.sx = pointer.lastX = e.clientX; pointer.sy = pointer.lastY = e.clientY;
   pointer.dragging = false; pointer.toolDrag = false;
@@ -237,6 +239,7 @@ canvas.addEventListener('pointerdown', e => {
   }
 });
 canvas.addEventListener('pointermove', e => {
+  if(E.paused) return;
   if (pointer.down && e.pointerId === pointer.id) {
     const dx = e.clientX - pointer.lastX, dy = e.clientY - pointer.lastY;
     pointer.lastX = e.clientX; pointer.lastY = e.clientY;
@@ -256,6 +259,7 @@ canvas.addEventListener('pointermove', e => {
   pointer.x = e.clientX; pointer.y = e.clientY;
 });
 canvas.addEventListener('pointerup', e => {
+  if(E.paused) return;
   if (e.pointerId !== pointer.id) return;
   pointer.down = false;
   if (pointer.toolDrag) { if (E.tool && E.tool.onUp) E.tool.onUp(); pointer.toolDrag = false; return; }
@@ -546,6 +550,7 @@ let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   let dt = (now - last) / 1000; last = now;
+  if(E.paused) return;
   if (dt > 0.1) dt = 0.1;
   dt *= (window.__speed || 1);
   E.time += dt;
@@ -617,4 +622,13 @@ export function unfreeze() { setControls({ move: true, look: true, interact: tru
 export function isLookingAt(target, tol = 0.2) {
   const { yaw, pitch } = yawPitchTo(target, E.player.pos);
   return Math.abs(angleDiff(E.player.yaw, yaw)) < tol && Math.abs(E.player.pitch - pitch) < tol * 2.2;
+}
+
+
+export function setPaused(value){
+ E.paused=!!value;pauseTimers(E.paused);
+ keys.clear();for(const d in dpadState)dpadState[d]=0;
+ if(pointer.id!==null && canvas.hasPointerCapture(pointer.id))canvas.releasePointerCapture(pointer.id);
+ pointer.down=false;pointer.dragging=false;pointer.toolDrag=false;pointer.id=null;
+ last=performance.now();
 }

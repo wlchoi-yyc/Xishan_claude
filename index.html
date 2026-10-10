@@ -10,13 +10,23 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
-</head>
+<style>
+ #pausePanel[hidden]{display:none!important}
+ #pausePanel{position:fixed;inset:0;z-index:900;display:grid;place-items:center;padding:24px;background:rgba(10,15,13,.8);overflow:auto;touch-action:none}
+ .pauseCard{box-sizing:border-box;width:min(100%,360px);padding:28px;background:#efe3c8;border:1px solid #9e8458;border-radius:14px;text-align:center;color:#37291f}
+ .pauseCard h2{font-size:30px;margin:0 0 22px}
+ .pauseCard button{display:block;width:100%;min-height:48px;margin:12px 0 0;border:1px solid #9e8458;border-radius:8px;padding:12px;background:#49372a;color:#f3e9d4;font:inherit;font-size:18px;cursor:pointer}
+ #btnResume{background:#a4372b}
+ #titleLogout{position:absolute;left:max(16px,env(safe-area-inset-left));bottom:max(16px,env(safe-area-inset-bottom));min-height:48px;padding:10px 16px;z-index:2;background:#49372a;color:#f3e9d4;border:1px solid #aa936b;border-radius:8px;font:inherit;cursor:pointer}
+ #title .titleInner{padding-bottom:76px}
+ body.game-paused #experience *{animation-play-state:paused!important}
+ </style></head>
 <body>
 <section id="authGate" role="region" aria-label="登入" style="position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:24px;background:#172322;color:#f0e7d3;text-align:center;font-family:system-ui,sans-serif">
   <div><h1>尋找柳宗元</h1><p id="authMessage" role="status" aria-live="polite">正在載入登入服務……</p><button id="googleLoginButton" disabled>使用 Google 帳號登入</button></div>
 </section>
 <div id="experience" hidden>
-<button id="authLogout" style="position:fixed;right:12px;bottom:12px;z-index:50">登出</button>
+<section id="pausePanel" role="dialog" aria-modal="true" aria-labelledby="pauseHeading" hidden><div class="pauseCard"><h2 id="pauseHeading">暫停</h2><button id="btnResume" type="button">繼續遊戲 ▶</button><button id="btnPauseHome" type="button">返回首頁</button><button id="authLogout" type="button">登出帳號</button></div></section>
 <canvas id="gl"></canvas>
 
 <!-- 準星 -->
@@ -50,7 +60,7 @@
   <div id="objective" class="hidden"><span class="objTag">目標</span><span id="objText"></span></div>
   <div id="chapterTag"></div>
   <div id="hudButtons">
-    <button id="btnHome" title="回到首頁（教師章節選擇）">首頁</button>
+    <button id="btnHome" title="暫停遊戲" aria-haspopup="dialog">暫停</button>
     <button id="btnJournal" class="hidden" title="遊記日誌">日誌</button>
     <button id="btnMap" class="hidden" title="地圖">地圖</button>
     <button id="btnHint" title="提示">提示</button>
@@ -94,6 +104,7 @@
 
 <!-- 標題畫面 -->
 <div id="title">
+  <button id="titleLogout" type="button">登出</button>
   <div class="titleInner">
     <h1><span class="t1">始得西山宴遊記</span><span class="t2">尋找柳宗元</span></h1>
     <p class="titleLead">元和四年，秋。永州。<br>柳宗元今天又出遊了——但到了這個時辰，仍然未歸。<br>循着他留下的痕跡，找出他的去向。</p>
@@ -111,13 +122,14 @@
 <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
 <script src="/__/firebase/8.10.1/firebase-firestore.js"></script>
 <script>
-// 「首頁」按鈕：直接回到標題畫面，並展開「教師：章節選擇」
-document.getElementById('btnHome').addEventListener('click', function () {
-  location.href = location.pathname + '?menu=1';
-});
+document.getElementById('authLogout').addEventListener('click',function(e){
+  if(!window.confirm('確定要登出《尋找柳宗元》嗎？')) { e.preventDefault();e.stopImmediatePropagation(); }
+},true);
+document.getElementById('titleLogout').addEventListener('click',()=>document.getElementById('authLogout').click());
 if (/[?&]menu=1/.test(location.search)) { var tm = document.getElementById('teacherMenu'); if (tm) tm.open = true; }
 </script>
 <script type="module" src="auth.js"></script>
 <script defer src="auto-update.js?v=__XISHAN_RELEASE__"></script>
 </body>
 </html>
+

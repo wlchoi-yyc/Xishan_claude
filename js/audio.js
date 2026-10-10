@@ -17,8 +17,20 @@ class AudioSys {
     this.levels = { wind: 0, water: 0, birds: 0, crickets: 0 };
     this.mode = null;
   }
+  setPaused(value) {
+    this.paused=!!value;
+    if(value){
+      this.pausedTracks=Object.values(this.bgm||{}).filter(tr=>!tr.el.paused);
+      this.pausedTracks.forEach(tr=>tr.el.pause());
+      if(this.ctx)this.ctx.suspend().then(()=>{if(!this.paused)this.ctx.resume();}).catch(()=>{});
+    }else{
+      if(this.ctx)this.ctx.resume().catch(()=>{});
+      for(const tr of this.pausedTracks||[])if(tr.active){const p=tr.el.play();if(p&&p.catch)p.catch(()=>{});}
+      this.pausedTracks=[];
+    }
+  }
   init() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    if (this.ctx) { if (!this.paused && this.ctx.state === 'suspended') this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const ctx = this.ctx = new AC();
@@ -99,6 +111,7 @@ class AudioSys {
     }
   }
   tick() {
+    if(this.paused)return;
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     // 風的起伏
@@ -251,3 +264,4 @@ class AudioSys {
 }
 
 export const audio = new AudioSys();
+
