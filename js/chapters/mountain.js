@@ -264,6 +264,8 @@ export async function chapter5() {
   for (const tool of [heldAxe, heldTorch]) tool.traverse(o => {
     if (!o.material) return;
     o.material = o.material.clone(); o.material.depthTest = false; o.material.depthWrite = false;
+    // 設為「透明」材質（不透明度仍是 1），才會在半透明的岩壁貼面、潭岸之後才畫，不會被它們蓋住一截
+    o.material.transparent = true;
     o.renderOrder = 999; o.userData.shadowSet = true; o.castShadow = false;
     if (o.isLight) return;
   });

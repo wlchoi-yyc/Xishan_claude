@@ -10,6 +10,7 @@ export async function enter(buildWorld, spawn, { fade = 1 } = {}) {
   freeze();
   await ui.fadeOut(fade);
   ui.hideDialog();
+  ui.objective('');   // 換場景時清除上一關的目標，免得新一關開頭仍顯示舊目標
   const world = buildWorld();
   setWorld(world);
   setPlayer(spawn.x, spawn.z, spawn.yaw ?? 0, spawn.pitch ?? 0);
