@@ -516,8 +516,17 @@ function slopeH(x, z) {
   if (x < 0) {
     h = -x * 4.4 + fbm(x * 0.2, z * 0.2, 3, 8) * (Math.abs(z) < 5 ? 0.8 : 2.5);
     if (x < -23.5) h = 104 + fbm(x * 0.05, z * 0.05, 3, 8) * 2 + (-(x + 23.5)) * 0.3;
+    // 崖頂邊緣不再一刀切：邊緣一帶削圓、向外略為崩缺，位置隨 z 起伏（攀爬路線附近不變）
+    const away = smoothstep(3, 8, Math.abs(z));
+    const lipX = -23.5 + fbm(z * 0.09, 3, 3, 85) * 3 * away;
+    h -= away * 2.2 * Math.max(0, 1 - Math.abs(x - lipX) / 2.6) * (0.6 + 0.4 * fbm(z * 0.3, 1, 2, 87));
   } else {
     h = -Math.min(x, 60) * 0.08 + fbm(x * 0.02, z * 0.02, 3, 6) * 2;
+    // 崖腳的碎石坡：靠近崖壁處地面微微隆起，隆起的闊度隨 z 起伏，崖腳便不是一條直線（起點附近不變）
+    // 攀爬路線前方隆起較少（0.35 倍），免得蓋住最低的落腳點
+    const away = 0.35 + 0.65 * smoothstep(3, 8, Math.abs(z));
+    const apron = Math.max(0.3, 1.2 + fbm(z * 0.13, 5, 3, 89) * 1.6) * away;
+    h += apron * Math.max(0, 1 - x / (2 + Math.abs(fbm(z * 0.07, 9, 2, 91)) * 5));
     if (x > 60) h = -4.8 - (x - 60) * 0.02 + fbm(x * 0.004, z * 0.004, 4, 6) * 14;
   }
   // 山的兩側向下
@@ -530,7 +539,7 @@ function slopeColor(h, slope, x, z) {
   const n = noise2(x * 0.08, z * 0.08, 9) * 0.5 + 0.5;
   let c = mixHex('#55713d', '#6f8446', n);
   // （近看的岩壁細節由 cliffSkin() 的貼圖負責；地形網格太疏，在這裏畫細紋會變成大三角形色塊）
-  if (slope > 0.45) c = mixHex(c, mixHex('#8d8575', '#a39a88', n), smoothstep(0.45, 0.7, slope));
+  if (slope > 0.45) c = mixHex(c, mixHex('#8d8575', '#a39a88', n), smoothstep(0.45, 0.9, slope + (noise2(x * 0.25, z * 0.25 + h * 0.1, 15)) * 0.25));
   if (x > 200) c = mixHex('#6c8a4a', '#88965a', n);
   return c;
 }
@@ -576,17 +585,27 @@ function rockTexture() {
 function cliffSkin(scene) {
   const Z = 34, TILE = 7;             // 寬 ±34 米；貼圖每 7 米重複一次
   const zs = [], ys = [];
-  for (let z = -Z; z <= Z + 0.01; z += 1) zs.push(z);
-  for (let y = 0.5; y <= 105; y += 0.9) ys.push(y);
+  for (let z = -Z; z <= Z + 0.01; z += 0.8) zs.push(z);
+  for (let y = -0.5; y <= 106; y += 0.7) ys.push(y);
   const faceX = (y, z) => { let lo = cliffX(y) - 6, hi = cliffX(y) + 6; for (let i = 0; i < 22; i++) { const m = (lo + hi) / 2; if (slopeH(m, z) > y) lo = m; else hi = m; } return hi; };
-  const pos = [], uv = [], uv1 = [], col = [], idx = [];
+  const pos = [], uv = [], col = [], idx = [];
   ys.forEach(y => zs.forEach(z => {
-    pos.push(faceX(y, z) + 0.12, y, z);
+    const x = faceX(y, z);
+    pos.push(x + 0.12, y, z);
     // 大範圍的深淺、冷暖變化，令重複的貼圖不那麼明顯
     const t = fbm(z * 0.06, y * 0.05, 3, 71) * 0.5 + 0.5, w = fbm(z * 0.04 + 9, y * 0.03, 2, 73) * 0.5 + 0.5;
-    const k = 0.78 + t * 0.32; col.push(k * (0.97 + w * 0.08), k, k * (1.03 - w * 0.08));
+    const k = 0.78 + t * 0.32;
+    // 透明度：只在真正陡峭的崖面上顯示岩石；山腳轉平、崖頂轉平的地方，
+    // 以不規則的雜訊邊緣漸漸淡出，像岩石從草坡裏露出來，而不是一張剪得整齊的牆紙
+    const e = 0.4, sl = Math.abs(slopeH(x + e, z) - slopeH(x - e, z)) / (2 * e);
+    const n1 = fbm(z * 0.22, y * 0.22, 3, 75), n2 = fbm(z * 0.6 + 3, y * 0.6, 2, 77);
+    const ragged = n1 * 0.9 + n2 * 0.35;                     // 大小兩層雜訊，邊緣有凹有凸
+    const steep = smoothstep(1.6, 3.4, sl + ragged * 1.6);
+    const foot = smoothstep(0.2, 2.6, y + ragged * 2.4);     // 山腳
+    const lip = 1 - smoothstep(98.5, 103.5, y + ragged * 3); // 崖頂
+    const sides = 1 - smoothstep(Z * 0.55, Z * 0.98, Math.abs(z) + ragged * 4);
+    col.push(k * (0.97 + w * 0.08), k, k * (1.03 - w * 0.08), Math.max(0, Math.min(1, steep * foot * lip * sides)));
     uv.push(z / TILE, y / TILE);
-    uv1.push((z + Z) / (2 * Z), 0.5);
   }));
   const W = zs.length;
   for (let j = 0; j < ys.length - 1; j++) for (let i = 0; i < W - 1; i++) {
@@ -596,16 +615,9 @@ function cliffSkin(scene) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  geo.setAttribute('uv1', new THREE.Float32BufferAttribute(uv1, 2));
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
   geo.setIndex(idx); geo.computeVertexNormals();
-  // 左右兩邊淡出
-  const ac = document.createElement('canvas'); ac.width = 64; ac.height = 4;
-  const ag = ac.getContext('2d'), grd = ag.createLinearGradient(0, 0, 64, 0);
-  grd.addColorStop(0, '#000'); grd.addColorStop(0.22, '#fff'); grd.addColorStop(0.78, '#fff'); grd.addColorStop(1, '#000');
-  ag.fillStyle = grd; ag.fillRect(0, 0, 64, 4);
-  const alpha = new THREE.CanvasTexture(ac); alpha.channel = 1;
-  const m = new THREE.MeshLambertMaterial({ map: rockTexture(), alphaMap: alpha, vertexColors: true, transparent: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 });
+  const m = new THREE.MeshLambertMaterial({ map: rockTexture(), vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 });
   const mesh = new THREE.Mesh(geo, m);
   mesh.renderOrder = 1;
   scene.add(mesh);
@@ -628,6 +640,39 @@ function cliffDecor(scene) {
     } else {
       const sz = 0.35 + r() * 0.7;
       rocks.push({ geo: new THREE.DodecahedronGeometry(sz, 0), color: mixHex('#8a8273', '#a99f8b', r()), matrix: mat(x + sz * 0.15, y, z, r() * 3, r() * 3, r() * 3, 1.2, 0.7 + r() * 0.3, 1) });
+    }
+  }
+  // 山腳：崖面與草地相接的地方原本是一條筆直的折線。沿着它堆一些大小不一、半埋的落石（崖腳碎石堆），
+  // 中間長出一叢叢草，把直線打斷，像岩石從草坡裏長出來。攀爬路線前方（|z| < 2.6）留空，不擋落腳點。
+  const groundY = (x, z) => slopeH(x, z);
+  for (let i = 0; i < 150; i++) {
+    const z = (r() - 0.5) * 70; if (Math.abs(z) < 2.6) continue;
+    const x = -0.6 + (r() - 0.35) * 3.2 + fbm(z * 0.12, 1, 2, 79) * 1.2;   // 崖腳兩邊一米多內，位置隨 z 起伏
+    if (r() < 0.45) {
+      const sz = 0.2 + Math.pow(r(), 2) * 1.1;
+      rocks.push({ geo: new THREE.DodecahedronGeometry(sz, 0), color: mixHex('#7f786a', '#a8a08c', r()), matrix: mat(x, groundY(x, z) + sz * 0.25, z, r() * 3, r() * 3, r() * 3, 1.15, 0.65 + r() * 0.3, 1) });
+    } else {
+      const n = 5 + Math.floor(r() * 7), tip = ['#93a253', '#a3ab5d', '#b4ad68', '#8a9a4c'][Math.floor(r() * 4)];
+      for (let k = 0; k < n; k++) addBlade(out, {
+        x: x + (r() - 0.5) * 0.3, y: groundY(x, z) - 0.05, z: z + (r() - 0.5) * 0.3, yaw: r() * 6.28,
+        lean: 0.1 + r() * 0.4, bend: 0.4 + r() * 0.7, len: 0.35 + r() * 0.45, width: 0.02 + r() * 0.01, seg: 2, base: '#45542a', tip,
+      });
+    }
+  }
+  // 崖頂邊緣：同樣用一排起伏的石塊和草叢打破平直的崖邊
+  for (let i = 0; i < 130; i++) {
+    const z = (r() - 0.5) * 66; if (Math.abs(z) < 2.2) continue;
+    const x = -23.6 + (r() - 0.6) * 2.4 + fbm(z * 0.1, 7, 2, 83) * 1.4;
+    const y = groundY(x, z);
+    if (r() < 0.4) {
+      const sz = 0.25 + Math.pow(r(), 2) * 1.0;
+      rocks.push({ geo: new THREE.DodecahedronGeometry(sz, 0), color: mixHex('#857d6e', '#aaa18c', r()), matrix: mat(x, y + sz * 0.2, z, r() * 3, r() * 3, r() * 3, 1.15, 0.7 + r() * 0.3, 1) });
+    } else {
+      const n = 5 + Math.floor(r() * 6), tip = ['#93a253', '#a3ab5d', '#b4ad68', '#8a9a4c'][Math.floor(r() * 4)];
+      for (let k = 0; k < n; k++) addBlade(out, {
+        x: x + (r() - 0.5) * 0.3, y: y - 0.05, z: z + (r() - 0.5) * 0.3, yaw: r() * 6.28,
+        lean: 0.15 + r() * 0.45, bend: 0.4 + r() * 0.7, len: 0.3 + r() * 0.4, width: 0.02 + r() * 0.01, seg: 2, base: '#45542a', tip,
+      });
     }
   }
   scene.add(new THREE.Mesh(bladeGeometry(out), bladeMat(0.06)));
